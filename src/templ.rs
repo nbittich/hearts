@@ -6,6 +6,7 @@ use serde::Serialize;
 const ENGINE: OnceCell<Environment> = OnceCell::new();
 
 pub const INDEX_PAGE: &str = "index.html";
+pub const ROOM_PAGE: &str = "room.html";
 pub const BASE_LAYOUT: &str = "base.html";
 
 pub fn get_template<S: Serialize>(tpl: &str, ctx: S) -> Result<String, Box<dyn Error>> {
@@ -25,5 +26,6 @@ fn init_engine() -> Result<Environment<'static>, Box<dyn Error>> {
     let mut env = Environment::new();
     env.add_template(BASE_LAYOUT, include_str!("templates/base.html"))?;
     env.add_template(INDEX_PAGE, include_str!("templates/index.html"))?;
+    env.add_template(ROOM_PAGE, include_str!("templates/room.html"))?;
     Ok(env)
 }

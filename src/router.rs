@@ -1,7 +1,7 @@
 use std::{
     error::Error,
     fmt::Display,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 use axum::{
@@ -12,21 +12,21 @@ use axum::{
     Router,
 };
 use minijinja::context;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 use crate::{
     room::Room,
-    templ::{get_template, INDEX_PAGE},
+    templ::{get_template, INDEX_PAGE, ROOM_PAGE},
 };
 
-pub fn get_router(rooms: Arc<Mutex<Vec<Room>>>) -> Router {
+pub fn get_router(rooms: Arc<RwLock<Vec<Room>>>) -> Router {
     let serve_dir = ServeDir::new("assets");
     Router::new()
         .route("/create-room", post(create_room))
         .route("/room/:id", get(get_room))
-        .nest_service("/", get(index_page))
+        .route("/", get(index_page))
         .nest_service("/assets", serve_dir)
         .with_state(rooms)
 }
@@ -40,17 +40,21 @@ pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn index_page() -> axum::response::Result<impl IntoResponse> {
-    let templ = get_template(INDEX_PAGE, context! {}).map_err(service_error)?;
+async fn index_page(
+    State(rooms): State<Arc<RwLock<Vec<Room>>>>,
+) -> axum::response::Result<impl IntoResponse> {
+    let rooms = rooms.read().map_err(service_error)?;
+
+    let templ = get_template(INDEX_PAGE, context! {rooms => *rooms}).map_err(service_error)?;
     Ok(Html::from(templ))
 }
 
 async fn create_room(
-    State(rooms): State<Arc<Mutex<Vec<Room>>>>,
+    State(rooms): State<Arc<RwLock<Vec<Room>>>>,
 ) -> axum::response::Result<impl IntoResponse> {
     let room = Room::default();
-    let response = Redirect::permanent(&format!("/room/{}", room.id));
-    let mut rooms = rooms.lock().map_err(service_error)?;
+    let response = Redirect::to(&format!("/room/{}", room.id));
+    let mut rooms = rooms.write().map_err(service_error)?;
     rooms.push(room);
 
     Ok(response)
@@ -58,14 +62,21 @@ async fn create_room(
 
 async fn get_room(
     Path(id): Path<String>,
-    State(rooms): State<Arc<Mutex<Vec<Room>>>>,
+    State(rooms): State<Arc<RwLock<Vec<Room>>>>,
 ) -> axum::response::Result<impl IntoResponse> {
-    let rooms = rooms.lock().map_err(service_error)?;
+    let rooms = rooms.read().map_err(service_error)?;
     let room = rooms
         .iter()
         .find(|r| r.id == id)
         .ok_or(StatusCode::NOT_FOUND)?;
-    Ok(Html::from(format!("<p> Room {id} </p>")))
+    let templ = get_template(
+        ROOM_PAGE,
+        context!(
+            room => *room
+        ),
+    )
+    .map_err(service_error)?;
+    Ok(Html::from(templ))
 }
 
 fn service_error(e: impl Display) -> StatusCode {

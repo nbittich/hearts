@@ -1,8 +1,11 @@
 use lib_hearts::Game;
 use rand::{Rng, RngCore};
+use serde::Serialize;
 
+#[derive(Serialize)]
 pub struct Room {
     pub id: String,
+    #[serde(skip_serializing)]
     state: RoomState,
 }
 
@@ -12,7 +15,7 @@ pub enum RoomState {
     Done([User; 4], Game),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize)]
 pub struct User {
     id: u64,
     name: [char; 12],

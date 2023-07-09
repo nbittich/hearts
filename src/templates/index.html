@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block title %}{{ super() }}{% endblock %}
 {% block body %}
-<p>Hello world</p>
+<form method="post" action="/create-room">
+  <button type="submit">New room</button>
+</form>
+<ul>
+  {%for room in rooms %}
+  <li><a href="/room/{{room.id}}">Room #{{room.id}}</a></li>
+  {%endfor %}
+</ul>
+
 {% endblock %}

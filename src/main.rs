@@ -8,7 +8,7 @@ use std::{
     error::Error,
     net::SocketAddr,
     str::FromStr,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 use constants::{SERVICE_APPLICATION_NAME, SERVICE_HOST, SERVICE_PORT};
@@ -21,7 +21,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let port = var(SERVICE_PORT).unwrap_or_else(|_| String::from("8080"));
     let app_name = var(SERVICE_APPLICATION_NAME).unwrap_or_else(|_| String::from("heartz"));
     let addr = SocketAddr::from_str(&format!("{host}:{port}"))?;
-    let rooms = Arc::new(Mutex::new(Vec::with_capacity(100)));
+    let rooms = Arc::new(RwLock::new(Vec::with_capacity(100)));
     let app = get_router(rooms.clone());
 
     tracing::info!("{app_name} :: listening on {:?}", addr);
