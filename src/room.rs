@@ -1,4 +1,4 @@
-use lib_hearts::Game;
+use lib_hearts::{Game, PLAYER_CARD_SIZE, PLAYER_NUMBER};
 use rand::{Rng, RngCore};
 use serde::Serialize;
 
@@ -10,9 +10,9 @@ pub struct Room {
 }
 
 pub enum RoomState {
-    WaitingForPlayers([Option<User>; 4]),
-    Started([User; 4], Game),
-    Done([User; 4], Game),
+    WaitingForPlayers([Option<User>; PLAYER_NUMBER]),
+    Started([User; PLAYER_NUMBER], Game),
+    Done([User; PLAYER_NUMBER], Game),
 }
 
 #[derive(Copy, Clone, Serialize)]

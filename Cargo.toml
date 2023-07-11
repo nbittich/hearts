@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 axum = { version = "0.6.18", features = ["ws"] }
-lib-hearts = "0.1.0"
+lib-hearts = "0.1.2"
 minijinja = "1.0.3"
 rand = "0.8.5"
 serde = { version = "1.0.167", features = ["derive"] }
