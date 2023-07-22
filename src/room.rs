@@ -1,4 +1,9 @@
-use std::{error::Error, fmt::Display, sync::Arc};
+use std::{
+    collections::HashSet,
+    error::Error,
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
 use crate::{
     constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT},
@@ -26,6 +31,7 @@ pub struct PlayerCard {
 pub enum RoomMessageType {
     Join,
     Joined(UserId),
+    ViewerJoined(UserId),
     GameStarting,
     GetCards,
     ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
@@ -53,8 +59,7 @@ pub struct Room {
     pub id: String,
     #[serde(skip_serializing)]
     pub state: RoomState,
-    pub viewers: Vec<UserId>,
-
+    pub viewers: HashSet<UserId>,
     #[serde(skip_serializing)]
     pub sender: Sender<RoomMessage>,
     #[serde(skip_serializing)]
@@ -104,14 +109,14 @@ impl Default for Room {
         Room {
             id: uuid::Uuid::new_v4().to_string(),
             state: RoomState::WaitingForPlayers([None; PLAYER_NUMBER]),
-            viewers: Vec::with_capacity(5),
+            viewers: HashSet::with_capacity(5),
             sender,
             receiver,
         }
     }
 }
 
-pub async fn room_task(room: Arc<RwLock<Room>>) {
+pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let room_guard = room.read().await;
     let sender = &room_guard.sender;
     let sender = sender.clone();
@@ -126,14 +131,11 @@ pub async fn room_task(room: Arc<RwLock<Room>>) {
                 if let &mut RoomState::WaitingForPlayers(mut players) = &mut room_guard.state {
                     if let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) {
                         *player_slot = Some(from_user_id);
-                        if let Err(e) = sender.send(RoomMessage {
+                        sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
                             msg_type: RoomMessageType::Joined(from_user_id),
-                        }) {
-                            tracing::error!("could not send message to room. kill the room {e:?}");
-                            break;
-                        };
+                        })?;
                     } else {
                         let users: [User; PLAYER_NUMBER] = unsafe {
                             to_static_array(&players[..], |player| {
@@ -151,15 +153,19 @@ pub async fn room_task(room: Arc<RwLock<Room>>) {
                         room_guard.state = RoomState::Started(users, game);
                         // notify game is about to start
 
-                        if let Err(e) = sender.send(RoomMessage {
+                        sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
                             msg_type: RoomMessageType::GameStarting,
-                        }) {
-                            tracing::error!("could not send message to room. kill the room {e:?}");
-                            break;
-                        };
+                        })?;
                     }
+                } else {
+                    room_guard.viewers.insert(from_user_id);
+                    sender.send(RoomMessage {
+                        from_user_id: None,
+                        to_user_id: None,
+                        msg_type: RoomMessageType::ViewerJoined(from_user_id),
+                    })?;
                 }
             }
             RoomMessageType::GetCards => {
@@ -190,21 +196,24 @@ pub async fn room_task(room: Arc<RwLock<Room>>) {
                     };
                 }
             }
-            RoomMessageType::Joined(_) => {
+            RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
                 tracing::warn!("received joined event. should never happen in theory")
             }
             RoomMessageType::State => {
-                tracing::warn!("received state even. should never happen in theory")
+                tracing::warn!("received state event. should never happen in theory")
             }
             RoomMessageType::ReceiveCards(_) => {
                 tracing::warn!("received receiveCards event. should never happen in theory")
             }
+            RoomMessageType::GameStarting => {
+                tracing::warn!("received gameStarting event. should never happen in theory")
+            }
             RoomMessageType::ChangeCards => todo!(),
             RoomMessageType::Play => todo!(),
             RoomMessageType::GetCurrentState => todo!(),
-            RoomMessageType::GameStarting => todo!(),
         }
     }
+    Ok(())
 }
 
 #[derive(Debug)]
