@@ -5,10 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{
-    constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT},
-    utils::to_static_array,
-};
+use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT};
 use arraystring::ArrayString;
 use lib_hearts::{
     Game, GameError, GameState, PositionInDeck, TypeCard, PLAYER_CARD_SIZE, PLAYER_NUMBER,
@@ -38,6 +35,10 @@ pub enum RoomMessageType {
     GetCards,
     ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
     Replaceards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
+    Starting {
+        player_ids_in_order: [UserId; PLAYER_NUMBER],
+        current_player_id: UserId,
+    },
     NextPlayerToReplaceCards {
         current_player_id: UserId,
     },
@@ -147,30 +148,30 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                             msg_type: RoomMessageType::Joined(from_user_id),
                         })?;
                     } else {
-                        let users: [User; PLAYER_NUMBER] = unsafe {
-                            to_static_array(&players[..], |player| {
-                                let Some(player) = player else {unreachable!()};
-                                User::default()
-                                    .human(player != ID_PLAYER_BOT)
-                                    .with_id(player)
-                            })
-                        };
+                        let users: [User; PLAYER_NUMBER] = players.map(|player| {
+                            let Some(player) = player else {unreachable!()};
+                            User::default()
+                                .human(player != ID_PLAYER_BOT)
+                                .with_id(player)
+                        });
 
                         let players: [(u64, bool); PLAYER_NUMBER] =
-                            unsafe { to_static_array(&users, |user| (user.id, user.bot)) };
+                            users.map(|user| (user.id, user.bot));
 
                         let game = Game::new(players, DEFAULT_HANDS);
                         let current_player_id =
                             game.current_player_id().ok_or("should not happen")?;
+
+                        let player_ids_in_order = game.player_ids_in_order();
                         room_guard.state = RoomState::Started(users, game);
+
                         // notify game is about to start
 
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
-                            msg_type: RoomMessageType::NextPlayerToReplaceCards {
-                                // todo nah you
-                                // need a specific event with the right player order
+                            msg_type: RoomMessageType::Starting {
+                                player_ids_in_order,
                                 current_player_id,
                             },
                         })?;
@@ -187,8 +188,8 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             RoomMessageType::GetCards => {
                 let room_guard = room.read().await;
                 if let RoomState::Started(users, game) = &room_guard.state {
-                    let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = unsafe {
-                        to_static_array(&game.get_player_cards(from_user_id), |card| {
+                    let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] =
+                        game.get_player_cards(from_user_id).map(|card| {
                             if let Some((position_in_deck, card)) = card {
                                 let emoji: ArrayString<typenum::U1> =
                                     ArrayString::from_utf8(card.get_emoji()).unwrap();
@@ -200,8 +201,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                             } else {
                                 None
                             }
-                        })
-                    };
+                        });
                     sender.send(RoomMessage {
                         from_user_id: None,
                         to_user_id: Some(from_user_id),
@@ -214,9 +214,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                 if let RoomState::Started(players, game) = &mut room_guard.state {
                     if let GameState::ExchangeCards { commands: _ } = &game.state {
                         if game.current_player_id() == Some(from_user_id) {
-                            let command = unsafe {
-                                to_static_array(&player_cards_exchange, |pc| pc.position_in_deck)
-                            };
+                            let command = player_cards_exchange.map(|pc| pc.position_in_deck);
                             if let Err(game_error) = game.exchange_cards(command) {
                                 sender.send(RoomMessage {
                                     from_user_id: None,
@@ -286,6 +284,12 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             }
             RoomMessageType::State => {
                 tracing::warn!("received state event. should never happen in theory")
+            }
+            RoomMessageType::Starting {
+                player_ids_in_order: _,
+                current_player_id: _,
+            } => {
+                tracing::warn!("received starting event. should never happen in theory")
             }
             RoomMessageType::ReceiveCards(_) => {
                 tracing::warn!("received receiveCards event. should never happen in theory")

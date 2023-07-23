@@ -711,9 +711,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lib-hearts"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b54688b85bf8a6b53329a91d0b82fc88795d9448733692a1bbb43e2db4053ee"
+checksum = "387064d74cd4e340daaf29f8109001c2710ef7edf1fa042b60a925f41495768f"
 dependencies = [
  "rand",
  "serde",
