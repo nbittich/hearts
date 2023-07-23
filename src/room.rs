@@ -10,7 +10,9 @@ use crate::{
     utils::to_static_array,
 };
 use arraystring::ArrayString;
-use lib_hearts::{Game, PositionInDeck, TypeCard, PLAYER_CARD_SIZE, PLAYER_NUMBER};
+use lib_hearts::{
+    Game, GameError, GameState, PositionInDeck, TypeCard, PLAYER_CARD_SIZE, PLAYER_NUMBER,
+};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{
@@ -32,11 +34,14 @@ pub enum RoomMessageType {
     Join,
     Joined(UserId),
     ViewerJoined(UserId),
-    GameStarting,
+    GameStarting { current_player_id: UserId },
     GetCards,
     ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
-    ChangeCards,
-    Play,
+    Replaceards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
+    NextPlayerToReplaceCards { current_player_id: UserId },
+    NextPlayerToPlay { current_player_id: UserId },
+    PlayerError(GameError),
+    Play(PlayerCard),
     GetCurrentState,
     State,
 }
@@ -150,13 +155,15 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                             unsafe { to_static_array(&users, |user| (user.id, user.bot)) };
 
                         let game = Game::new(players, DEFAULT_HANDS);
+                        let current_player_id =
+                            game.current_player_id().ok_or("should not happen")?;
                         room_guard.state = RoomState::Started(users, game);
                         // notify game is about to start
 
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
-                            msg_type: RoomMessageType::GameStarting,
+                            msg_type: RoomMessageType::GameStarting { current_player_id },
                         })?;
                     }
                 } else {
@@ -186,16 +193,64 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                             }
                         })
                     };
-                    if let Err(e) = sender.send(RoomMessage {
+                    sender.send(RoomMessage {
                         from_user_id: None,
                         to_user_id: Some(from_user_id),
                         msg_type: RoomMessageType::ReceiveCards(cards),
-                    }) {
-                        tracing::error!("could not send message to room. kill the room {e:?}");
-                        break;
-                    };
+                    })?;
                 }
             }
+            RoomMessageType::Replaceards(player_cards_exchange) => {
+                let mut room_guard = room.write().await;
+                if let RoomState::Started(players, game) = &mut room_guard.state {
+                    if let GameState::ExchangeCards { commands: _ } = &game.state {
+                        if game.current_player_id() == Some(from_user_id) {
+                            let command = unsafe {
+                                to_static_array(&player_cards_exchange, |pc| pc.position_in_deck)
+                            };
+                            if let Err(game_error) = game.exchange_cards(command) {
+                                sender.send(RoomMessage {
+                                    from_user_id: None,
+                                    to_user_id: Some(from_user_id),
+                                    msg_type: RoomMessageType::PlayerError(game_error),
+                                })?;
+                            } else {
+                                let Some(next_player_id) = game.current_player_id() else {unreachable!()};
+
+                                match &game.state {
+                                    GameState::ExchangeCards { commands: _ } => {
+                                        // send change cards
+                                        sender.send(RoomMessage {
+                                            from_user_id: None,
+                                            to_user_id: None,
+                                            msg_type: RoomMessageType::NextPlayerToReplaceCards {
+                                                current_player_id: next_player_id,
+                                            },
+                                        })?;
+                                    }
+                                    GameState::PlayingHand {
+                                        stack: _,
+                                        current_scores: _,
+                                    } => {
+                                        // send play event
+                                        sender.send(RoomMessage {
+                                            from_user_id: None,
+                                            to_user_id: None,
+                                            msg_type: RoomMessageType::NextPlayerToPlay {
+                                                current_player_id: next_player_id,
+                                            },
+                                        })?;
+                                    }
+                                    any => {
+                                        tracing::warn!("receiving weird event from game after exchange cards: {any:?}");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
                 tracing::warn!("received joined event. should never happen in theory")
             }
@@ -205,11 +260,23 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             RoomMessageType::ReceiveCards(_) => {
                 tracing::warn!("received receiveCards event. should never happen in theory")
             }
-            RoomMessageType::GameStarting => {
+            RoomMessageType::GameStarting {
+                current_player_id: _,
+            } => {
                 tracing::warn!("received gameStarting event. should never happen in theory")
             }
-            RoomMessageType::ChangeCards => todo!(),
-            RoomMessageType::Play => todo!(),
+            RoomMessageType::PlayerError(_) => {
+                tracing::warn!("received playerError event. should never happen in theory")
+            }
+            RoomMessageType::NextPlayerToReplaceCards {
+                current_player_id: _,
+            } => tracing::warn!(
+                "received nextPlayerToReplaceCards event. should never happen in theory"
+            ),
+            RoomMessageType::NextPlayerToPlay {
+                current_player_id: _,
+            } => tracing::warn!("received nextPlayerToPlay event. should never happen in theory"),
+            RoomMessageType::Play(_) => todo!(),
             RoomMessageType::GetCurrentState => todo!(),
         }
     }
