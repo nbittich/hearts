@@ -274,6 +274,31 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                             })?;
                         } else {
                             // todo check if end hand or end game or playing hand
+                            match game.state {
+                                GameState::PlayingHand {
+                                    stack,
+                                    current_scores,
+                                } => {
+                                    let Some(current_player_id) = game.current_player_id() else {unreachable!()};
+                                    sender.send(RoomMessage {
+                                        from_user_id: None,
+                                        to_user_id: Some(from_user_id),
+                                        msg_type: RoomMessageType::NextPlayerToPlay {
+                                            current_player_id,
+                                            stack,
+                                        },
+                                    })?;
+                                }
+                                GameState::ComputeScore {
+                                    stack,
+                                    current_scores,
+                                } => {
+                                    game.compute_score()?;
+                                }
+                                GameState::EndHand => todo!(),
+                                GameState::End => todo!(),
+                                GameState::ExchangeCards { commands } => todo!(),
+                            }
                         }
                     }
                 }
