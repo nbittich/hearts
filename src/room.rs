@@ -8,7 +8,8 @@ use std::{
 use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT};
 use arraystring::ArrayString;
 use lib_hearts::{
-    Game, GameError, GameState, PositionInDeck, TypeCard, PLAYER_CARD_SIZE, PLAYER_NUMBER,
+    Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard, PLAYER_CARD_SIZE,
+    PLAYER_NUMBER,
 };
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -49,7 +50,7 @@ pub enum RoomMessageType {
     PlayerError(GameError),
     Play(PlayerCard),
     GetCurrentState,
-    State,
+    State(PlayerState),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -294,6 +295,8 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                     current_scores,
                                 } => {
                                     game.compute_score()?;
+                                    game.deal_cards()?;
+                                    // todo i want the client to ask to deal cards
                                 }
                                 GameState::EndHand => todo!(),
                                 GameState::End => todo!(),
@@ -307,7 +310,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
                 tracing::warn!("received joined event. should never happen in theory")
             }
-            RoomMessageType::State => {
+            RoomMessageType::State(_) => {
                 tracing::warn!("received state event. should never happen in theory")
             }
             RoomMessageType::Starting {

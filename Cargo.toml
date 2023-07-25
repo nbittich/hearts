@@ -12,7 +12,7 @@ axum = { version = "0.6.19", features = ["ws", "headers"] }
 axum-extra = "0.7.5"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
-lib-hearts = "0.1.11"
+lib-hearts = "0.1.14"
 minijinja = "1.0.5"
 rand = "0.8.5"
 serde = { version = "1.0.174", features = ["derive", "rc"] }
