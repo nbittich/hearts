@@ -158,6 +158,12 @@ fn convert_stack_to_card_player_card(stack: &CardStack) -> [Option<PlayerCard>; 
         }
     })
 }
+
+// only JOIN and get state are allowed for viewers
+fn is_valid_msg(room: &Room, user_id: u64) -> bool {
+    !room.viewers.contains(&user_id)
+}
+
 pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Send + Sync>> {
     let (sender, mut receiver) = {
         let room_guard = room.read().await;
@@ -222,6 +228,9 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             }
             RoomMessageType::GetCards => {
                 let room_guard = room.read().await;
+                if !is_valid_msg(&room_guard, from_user_id) {
+                    continue;
+                }
                 if let RoomState::Started(users, game) = &room_guard.state {
                     let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
                         .get_player_cards(from_user_id)
@@ -235,6 +244,9 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             }
             RoomMessageType::Replaceards(player_cards_exchange) => {
                 let mut room_guard = room.write().await;
+                if !is_valid_msg(&room_guard, from_user_id) {
+                    continue;
+                }
                 if let RoomState::Started(players, game) = &mut room_guard.state {
                     if let GameState::ExchangeCards { commands: _ } = &game.state {
                         if game.current_player_id() == Some(from_user_id) {
@@ -284,6 +296,9 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             }
             RoomMessageType::Play(player_card) => {
                 let mut room_guard = room.write().await;
+                if !is_valid_msg(&room_guard, from_user_id) {
+                    continue;
+                }
                 if let RoomState::Started(players, game) = &mut room_guard.state {
                     if let GameState::PlayingHand {
                         stack: _,
@@ -398,7 +413,8 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                 }
             }
             e => {
-                tracing::warn!("received {e:?}. should not happen")
+                tracing::warn!("received {e:?}. should not happen");
+                continue;
             }
         }
     }

@@ -12,10 +12,10 @@ axum = { version = "0.6.19", features = ["ws", "headers"] }
 axum-extra = "0.7.5"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
-lib-hearts = "0.1.17"
+lib-hearts = "0.1.18"
 minijinja = "1.0.5"
 rand = "0.8.5"
-serde = { version = "1.0.177", features = ["derive", "rc"] }
+serde = { version = "1.0.178", features = ["derive", "rc"] }
 serde_json = "1.0.104"
 tokio = { version = "1.29.1", features = ["full"] }
 tower-http = { version = "0.4.3", features = ["fs", "trace", "redirect"] }
