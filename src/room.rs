@@ -8,8 +8,8 @@ use std::{
 use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT};
 use arraystring::ArrayString;
 use lib_hearts::{
-    Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard, PLAYER_CARD_SIZE,
-    PLAYER_NUMBER,
+    get_card_by_idx, Card, Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard,
+    PLAYER_CARD_SIZE, PLAYER_NUMBER,
 };
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -47,13 +47,19 @@ pub enum RoomMessageType {
     },
     NextPlayerToPlay {
         current_player_id: UserId,
-        stack: CardStack,
+        stack: [Option<PlayerCard>; PLAYER_NUMBER],
     },
     End,
     PlayerError(GameError),
     Play(PlayerCard),
     GetCurrentState,
-    State(PlayerState),
+    State {
+        player_scores: [PlayerState; PLAYER_NUMBER],
+        current_cards: [Option<PlayerCard>; PLAYER_CARD_SIZE],
+        current_stack: [Option<PlayerCard>; PLAYER_NUMBER],
+        current_hand: u8,
+        hands: u8,
+    },
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -131,12 +137,35 @@ impl Default for Room {
     }
 }
 
+fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
+    if let Some((position_in_deck, card)) = card {
+        let emoji: ArrayString<typenum::U1> = ArrayString::from_utf8(card.get_emoji()).unwrap();
+        Some(PlayerCard {
+            emoji,
+            position_in_deck,
+            type_card: *card.get_type(),
+        })
+    } else {
+        None
+    }
+}
+fn convert_stack_to_card_player_card(stack: &CardStack) -> [Option<PlayerCard>; PLAYER_NUMBER] {
+    stack.map(|s| {
+        if let Some((_, card_idx)) = s {
+            convert_card_to_player_card(Some((card_idx, get_card_by_idx(card_idx))))
+        } else {
+            None
+        }
+    })
+}
 pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Send + Sync>> {
-    let room_guard = room.read().await;
-    let sender = &room_guard.sender;
-    let sender = sender.clone();
-    let mut receiver = sender.subscribe();
-    drop(room_guard); // we don't want to keep the guard
+    let (sender, mut receiver) = {
+        let room_guard = room.read().await;
+        let sender = &room_guard.sender;
+        let sender = sender.clone();
+        let receiver = sender.subscribe();
+        (sender, receiver)
+    };
     let room = room.clone();
     while let Ok(msg) = receiver.recv().await {
         let Some(from_user_id) = msg.from_user_id else {continue};
@@ -194,20 +223,9 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
             RoomMessageType::GetCards => {
                 let room_guard = room.read().await;
                 if let RoomState::Started(users, game) = &room_guard.state {
-                    let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] =
-                        game.get_player_cards(from_user_id).map(|card| {
-                            if let Some((position_in_deck, card)) = card {
-                                let emoji: ArrayString<typenum::U1> =
-                                    ArrayString::from_utf8(card.get_emoji()).unwrap();
-                                Some(PlayerCard {
-                                    emoji,
-                                    position_in_deck,
-                                    type_card: *card.get_type(),
-                                })
-                            } else {
-                                None
-                            }
-                        });
+                    let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
+                        .get_player_cards(from_user_id)
+                        .map(convert_card_to_player_card);
                     sender.send(RoomMessage {
                         from_user_id: None,
                         to_user_id: Some(from_user_id),
@@ -251,7 +269,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                             to_user_id: None,
                                             msg_type: RoomMessageType::NextPlayerToPlay {
                                                 current_player_id: next_player_id,
-                                                stack: *stack,
+                                                stack: convert_stack_to_card_player_card(stack),
                                             },
                                         })?;
                                     }
@@ -290,7 +308,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                         to_user_id: None,
                                         msg_type: RoomMessageType::NextPlayerToPlay {
                                             current_player_id,
-                                            stack,
+                                            stack: convert_stack_to_card_player_card(&stack),
                                         },
                                     })?;
                                 }
@@ -337,11 +355,58 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                 }
             }
 
-            RoomMessageType::GetCurrentState => todo!(),
+            RoomMessageType::GetCurrentState => {
+                let room_guard = room.read().await;
+                match &room_guard.state {
+                    RoomState::WaitingForPlayers(_) => {
+                        sender.send(RoomMessage {
+                            from_user_id: None,
+                            to_user_id: Some(from_user_id),
+                            msg_type: RoomMessageType::PlayerError(GameError::StateError),
+                        })?;
+                    }
+                    RoomState::Started(players, game) | RoomState::Done(players, game) => {
+                        // send current state
+                        let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
+                            .get_player_cards(from_user_id)
+                            .map(convert_card_to_player_card);
+                        let stack = match &game.state {
+                            GameState::PlayingHand {
+                                stack,
+                                current_scores: _,
+                            }
+                            | GameState::ComputeScore {
+                                stack,
+                                current_scores: _,
+                            } => convert_stack_to_card_player_card(stack),
+                            _ => [None; PLAYER_NUMBER],
+                        };
+
+                        let scores = game.player_score_by_id();
+                        sender.send(RoomMessage {
+                            from_user_id: None,
+                            to_user_id: Some(from_user_id),
+                            msg_type: RoomMessageType::State {
+                                player_scores: scores,
+                                current_cards: cards,
+                                current_stack: stack,
+                                current_hand: game.current_hand,
+                                hands: game.hands,
+                            },
+                        })?;
+                    }
+                }
+            }
             RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
                 tracing::warn!("received joined event. should never happen in theory")
             }
-            RoomMessageType::State(_) => {
+            RoomMessageType::State {
+                player_scores: _,
+                current_cards: _,
+                current_stack: _,
+                current_hand: _,
+                hands: _,
+            } => {
                 tracing::warn!("received state event. should never happen in theory")
             }
             RoomMessageType::NewHand {
