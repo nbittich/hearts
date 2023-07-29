@@ -397,43 +397,8 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                     }
                 }
             }
-            RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
-                tracing::warn!("received joined event. should never happen in theory")
-            }
-            RoomMessageType::State {
-                player_scores: _,
-                current_cards: _,
-                current_stack: _,
-                current_hand: _,
-                hands: _,
-            } => {
-                tracing::warn!("received state event. should never happen in theory")
-            }
-            RoomMessageType::NewHand {
-                player_ids_in_order: _,
-                current_player_id: _,
-                hands: _,
-                current_hand: _,
-            } => {
-                tracing::warn!("received new hand event. should never happen in theory")
-            }
-            RoomMessageType::ReceiveCards(_) => {
-                tracing::warn!("received receiveCards event. should never happen in theory")
-            }
-            RoomMessageType::PlayerError(_) => {
-                tracing::warn!("received playerError event. should never happen in theory")
-            }
-            RoomMessageType::NextPlayerToReplaceCards {
-                current_player_id: _,
-            } => tracing::warn!(
-                "received nextPlayerToReplaceCards event. should never happen in theory"
-            ),
-            RoomMessageType::NextPlayerToPlay {
-                current_player_id: _,
-                stack: _,
-            } => tracing::warn!("received nextPlayerToPlay event. should never happen in theory"),
-            RoomMessageType::End => {
-                tracing::warn!("received end event. should never happen in theory")
+            e => {
+                tracing::warn!("received {e:?}. should not happen")
             }
         }
     }
