@@ -36,9 +36,11 @@ pub enum RoomMessageType {
     GetCards,
     ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
     Replaceards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
-    Starting {
+    NewHand {
         player_ids_in_order: [UserId; PLAYER_NUMBER],
         current_player_id: UserId,
+        current_hand: u8,
+        hands: u8,
     },
     NextPlayerToReplaceCards {
         current_player_id: UserId,
@@ -47,6 +49,7 @@ pub enum RoomMessageType {
         current_player_id: UserId,
         stack: CardStack,
     },
+    End,
     PlayerError(GameError),
     Play(PlayerCard),
     GetCurrentState,
@@ -171,9 +174,11 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
-                            msg_type: RoomMessageType::Starting {
+                            msg_type: RoomMessageType::NewHand {
                                 player_ids_in_order,
                                 current_player_id,
+                                current_hand: game.current_hand + 1,
+                                hands: game.hands,
                             },
                         })?;
                     }
@@ -274,7 +279,6 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                 msg_type: RoomMessageType::PlayerError(game_error),
                             })?;
                         } else {
-                            // todo check if end hand or end game or playing hand
                             match game.state {
                                 GameState::PlayingHand {
                                     stack,
@@ -283,7 +287,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                     let Some(current_player_id) = game.current_player_id() else {unreachable!()};
                                     sender.send(RoomMessage {
                                         from_user_id: None,
-                                        to_user_id: Some(from_user_id),
+                                        to_user_id: None,
                                         msg_type: RoomMessageType::NextPlayerToPlay {
                                             current_player_id,
                                             stack,
@@ -295,29 +299,58 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                                     current_scores,
                                 } => {
                                     game.compute_score()?;
-                                    game.deal_cards()?;
-                                    // todo i want the client to ask to deal cards
+                                    match &game.state {
+                                        GameState::EndHand => {
+                                            game.deal_cards()?;
+                                            let current_player_id = game
+                                                .current_player_id()
+                                                .ok_or("should not happen")?;
+
+                                            let player_ids_in_order = game.player_ids_in_order();
+                                            sender.send(RoomMessage {
+                                                from_user_id: None,
+                                                to_user_id: None,
+                                                msg_type: RoomMessageType::NewHand {
+                                                    player_ids_in_order,
+                                                    current_player_id,
+                                                    hands: game.hands,
+                                                    current_hand: game.current_hand + 1,
+                                                },
+                                            })?;
+                                        }
+                                        GameState::End => {
+                                            room_guard.state = RoomState::Done(*players, *game);
+                                            sender.send(RoomMessage {
+                                                from_user_id: None,
+                                                to_user_id: None,
+                                                msg_type: RoomMessageType::End,
+                                            })?;
+                                        }
+                                        _ => unreachable!("this cannot happen brazza"),
+                                    }
                                 }
-                                GameState::EndHand => todo!(),
-                                GameState::End => todo!(),
-                                GameState::ExchangeCards { commands } => todo!(),
+
+                                _ => unreachable!("this cannot happen too brazza"),
                             }
                         }
                     }
                 }
             }
 
+            RoomMessageType::GetCurrentState => todo!(),
             RoomMessageType::Joined(_) | RoomMessageType::ViewerJoined(_) => {
                 tracing::warn!("received joined event. should never happen in theory")
             }
             RoomMessageType::State(_) => {
                 tracing::warn!("received state event. should never happen in theory")
             }
-            RoomMessageType::Starting {
+            RoomMessageType::NewHand {
                 player_ids_in_order: _,
                 current_player_id: _,
+                hands: _,
+                current_hand: _,
             } => {
-                tracing::warn!("received starting event. should never happen in theory")
+                tracing::warn!("received new hand event. should never happen in theory")
             }
             RoomMessageType::ReceiveCards(_) => {
                 tracing::warn!("received receiveCards event. should never happen in theory")
@@ -334,7 +367,9 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
                 current_player_id: _,
                 stack: _,
             } => tracing::warn!("received nextPlayerToPlay event. should never happen in theory"),
-            RoomMessageType::GetCurrentState => todo!(),
+            RoomMessageType::End => {
+                tracing::warn!("received end event. should never happen in theory")
+            }
         }
     }
     Ok(())
