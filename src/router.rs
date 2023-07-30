@@ -12,13 +12,14 @@ use tokio::sync::RwLock;
 use tower_http::services::ServeDir;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use uuid::Uuid;
 
 use crate::{
-    room::{room_task, Room},
+    room::Room,
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
     utils::service_error,
 };
-pub type Rooms = Vec<Arc<RwLock<Room>>>;
+pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 
 pub fn get_router(rooms: Rooms, store: impl SessionStore) -> Router {
     let serve_dir = ServeDir::new("assets");
@@ -41,36 +42,40 @@ pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
 }
 
 async fn index_page(State(rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
-    let mut room_ids: Vec<String> = Vec::with_capacity(rooms.len());
-    for room in rooms.iter() {
-        room_ids.push(room.read().await.id.clone());
+    let rooms_guard = rooms.read().await;
+    let mut room_ids: Vec<Uuid> = Vec::with_capacity(rooms_guard.len());
+    for room in rooms_guard.iter() {
+        room_ids.push(room.read().await.id);
     }
 
     let templ = get_template(INDEX_PAGE, context! {rooms => room_ids}).map_err(service_error)?;
     Ok(Html::from(templ))
 }
 
-async fn create_room(State(mut rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
-    let room = Room::default();
-    let response = Redirect::to(&format!("/room/{}", room.id));
-    let room = Arc::new(RwLock::new(room));
-
+async fn create_room(State(rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
+    let room = Room::new().await;
     let (clone, room) = (room.clone(), room);
-    rooms.push(room);
+    let room_guard = clone.read().await;
+    let response = Redirect::to(&format!("/room/{}", room_guard.id));
 
-    let task = tokio::spawn(room_task(clone));
+    let mut rooms_guard = rooms.write().await;
+    rooms_guard.push(room);
+
     // todo i stopped there
 
     Ok(response)
 }
 
 async fn get_room(
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     State(rooms): State<Rooms>,
 ) -> axum::response::Result<impl IntoResponse> {
-    for r in rooms.iter() {
+    tracing::info!("room id {id}");
+    let rooms_guard = rooms.read().await;
+    for r in rooms_guard.iter() {
         let room = r.read().await;
         if room.id == id {
+            tracing::info!("gettin in");
             let templ = get_template(
                 ROOM_PAGE,
                 context!(

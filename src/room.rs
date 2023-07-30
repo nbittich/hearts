@@ -13,10 +13,14 @@ use lib_hearts::{
 };
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{
-    broadcast::{self, Receiver, Sender},
-    RwLock,
+use tokio::{
+    sync::{
+        broadcast::{self, Receiver, Sender},
+        RwLock,
+    },
+    task::JoinHandle,
 };
+use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U1>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 
@@ -77,7 +81,7 @@ pub type UserId = u64;
 
 #[derive(Serialize)]
 pub struct Room {
-    pub id: String,
+    pub id: Uuid,
     #[serde(skip_serializing)]
     pub state: RoomState,
     pub viewers: HashSet<UserId>,
@@ -85,6 +89,8 @@ pub struct Room {
     pub sender: Sender<RoomMessage>,
     #[serde(skip_serializing)]
     pub receiver: Receiver<RoomMessage>,
+    #[serde(skip_serializing)]
+    pub task: Option<JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>>,
 }
 
 pub enum RoomState {
@@ -124,19 +130,6 @@ impl User {
     }
 }
 
-impl Default for Room {
-    fn default() -> Self {
-        let (sender, receiver) = broadcast::channel(ABRITRATRY_CHANNEL_SIZE);
-        Room {
-            id: uuid::Uuid::new_v4().to_string(),
-            state: RoomState::WaitingForPlayers([None; PLAYER_NUMBER]),
-            viewers: HashSet::with_capacity(5),
-            sender,
-            receiver,
-        }
-    }
-}
-
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
     if let Some((position_in_deck, card)) = card {
         let emoji: ArrayString<typenum::U1> = ArrayString::from_utf8(card.get_emoji()).unwrap();
@@ -164,7 +157,35 @@ fn is_valid_msg(room: &Room, user_id: u64) -> bool {
     !room.viewers.contains(&user_id)
 }
 
-pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Send + Sync>> {
+impl Room {
+    pub async fn new() -> Arc<RwLock<Room>> {
+        let (sender, receiver) = broadcast::channel(ABRITRATRY_CHANNEL_SIZE);
+        let id = Uuid::new_v4();
+        let room = Room {
+            id,
+            state: RoomState::WaitingForPlayers([None; PLAYER_NUMBER]),
+            viewers: HashSet::with_capacity(5),
+            sender,
+            receiver,
+            task: None,
+        };
+        let room = Arc::new(RwLock::new(room));
+
+        let (clone, room) = (room.clone(), room);
+        let task = tokio::spawn(room_task(clone, id));
+
+        let mut room_guard = room.write().await;
+        room_guard.task = Some(task);
+
+        room.clone()
+    }
+}
+
+pub async fn room_task(
+    room: Arc<RwLock<Room>>,
+    id: Uuid,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    tracing::info!("setup room task {id}...");
     let (sender, mut receiver) = {
         let room_guard = room.read().await;
         let sender = &room_guard.sender;
@@ -173,6 +194,7 @@ pub async fn room_task(room: Arc<RwLock<Room>>) -> Result<(), Box<dyn Error + Se
         (sender, receiver)
     };
     let room = room.clone();
+    tracing::info!("listening task {id}...");
     while let Ok(msg) = receiver.recv().await {
         let Some(from_user_id) = msg.from_user_id else {continue};
         match msg.msg_type {

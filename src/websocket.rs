@@ -18,6 +18,7 @@ use axum::{
 };
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use tokio::sync::broadcast::Sender;
+use uuid::Uuid;
 
 use crate::{
     constants::{COOKIE, USER_ID},
@@ -27,7 +28,7 @@ use crate::{
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
-    Path(room_id): Path<String>,
+    Path(room_id): Path<Uuid>,
     State(store): State<impl SessionStore>,
     State(rooms): State<Arc<RwLock<Vec<Room>>>>,
     cookies: headers::Cookie,

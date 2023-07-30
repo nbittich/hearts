@@ -5,11 +5,12 @@ mod router;
 mod templ;
 mod utils;
 mod websocket;
-use std::{env::var, error::Error, net::SocketAddr, str::FromStr};
+use std::{env::var, error::Error, net::SocketAddr, str::FromStr, sync::Arc};
 
 use async_session::MemoryStore;
 use constants::{SERVICE_APPLICATION_NAME, SERVICE_HOST, SERVICE_PORT};
 use router::{get_router, setup_tracing};
+use tokio::sync::RwLock;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     setup_tracing()?;
@@ -18,7 +19,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let port = var(SERVICE_PORT).unwrap_or_else(|_| String::from("8080"));
     let app_name = var(SERVICE_APPLICATION_NAME).unwrap_or_else(|_| String::from("heartz"));
     let addr = SocketAddr::from_str(&format!("{host}:{port}"))?;
-    let rooms = Vec::with_capacity(100);
+    let rooms = Arc::new(RwLock::new(Vec::with_capacity(100)));
     let store = MemoryStore::new();
     let app = get_router(rooms, store);
 
