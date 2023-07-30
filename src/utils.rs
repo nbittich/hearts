@@ -1,4 +1,4 @@
-use std::{fmt::Display, sync::atomic::AtomicU64};
+use std::fmt::Display;
 
 use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
@@ -8,6 +8,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
 };
 use axum_extra::extract::CookieJar;
+use uuid::Uuid;
 
 use crate::constants::{COOKIE as COOKIE_NAME, USER_ID};
 
@@ -23,7 +24,6 @@ pub fn service_error(e: impl Display) -> impl IntoResponse {
     tracing::error!("service error: {e}");
     StatusCode::INTERNAL_SERVER_ERROR
 }
-static SESSION_ID: AtomicU64 = AtomicU64::new(1);
 
 pub async fn build_guest_session_if_none<B>(
     State(store): State<MemoryStore>,
@@ -34,7 +34,7 @@ pub async fn build_guest_session_if_none<B>(
     let mut response = next.run(request).await;
     if cookies.get(COOKIE_NAME).is_none() {
         tracing::debug!("session doesn't exist, create one");
-        let id = SESSION_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let id = Uuid::new_v4();
         let mut session = Session::new();
         session.insert(USER_ID, id).map_err(service_error)?;
         // Store session and get corresponding cookie
