@@ -31,10 +31,11 @@ async fn ws_handler(
     Path(room_id): Path<Uuid>,
     State(store): State<impl SessionStore>,
     State(rooms): State<Arc<RwLock<Vec<Room>>>>,
-    cookies: headers::Cookie,
+    cookies: Option<TypedHeader<headers::Cookie>>,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> axum::response::Result<impl IntoResponse> {
+    let cookies = cookies.ok_or_else(|| service_error("cookie not present"))?;
     let session_cookie = cookies.get(COOKIE).ok_or(HomePageRedirect)?;
     let session = store
         .load_session(session_cookie.to_string())

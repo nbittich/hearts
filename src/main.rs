@@ -24,9 +24,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let app = get_router(rooms, store);
 
     tracing::info!("{app_name} :: listening on {:?}", addr);
-
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await?;
+
     Ok(())
 }

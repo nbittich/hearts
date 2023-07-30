@@ -1,4 +1,9 @@
-use async_session::SessionStore;
+use crate::{
+    room::Room,
+    templ::{get_template, INDEX_PAGE, ROOM_PAGE},
+    utils::{build_guest_session_if_none, service_error},
+};
+use async_session::MemoryStore;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -9,25 +14,26 @@ use axum::{
 use minijinja::context;
 use std::{error::Error, sync::Arc};
 use tokio::sync::RwLock;
+use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use uuid::Uuid;
-
-use crate::{
-    room::Room,
-    templ::{get_template, INDEX_PAGE, ROOM_PAGE},
-    utils::service_error,
-};
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 
-pub fn get_router(rooms: Rooms, store: impl SessionStore) -> Router {
+pub fn get_router(rooms: Rooms, store: MemoryStore) -> Router {
     let serve_dir = ServeDir::new("assets");
     Router::new()
         .route("/create-room", post(create_room))
         .route("/room/:id", get(get_room))
         .route("/", get(index_page))
         .nest_service("/assets", serve_dir)
+        .route_layer(
+            ServiceBuilder::new().layer(axum::middleware::from_fn_with_state(
+                store.clone(),
+                build_guest_session_if_none,
+            )),
+        )
         .with_state(rooms)
         .with_state(store)
 }
@@ -70,12 +76,11 @@ async fn get_room(
     Path(id): Path<Uuid>,
     State(rooms): State<Rooms>,
 ) -> axum::response::Result<impl IntoResponse> {
-    tracing::info!("room id {id}");
+    tracing::debug!("get room id {id}");
     let rooms_guard = rooms.read().await;
     for r in rooms_guard.iter() {
         let room = r.read().await;
         if room.id == id {
-            tracing::info!("gettin in");
             let templ = get_template(
                 ROOM_PAGE,
                 context!(
