@@ -71,13 +71,13 @@ pub struct RoomMessage {
     // if from_user_id is none, the message comes from system
     // if to_user_id is none and from_user_id is some, the message is for system
     // if both are none, the message should be broadcast
-    pub from_user_id: Option<u64>,
+    pub from_user_id: Option<UserId>,
     #[serde(skip_deserializing)]
-    pub to_user_id: Option<u64>,
+    pub to_user_id: Option<UserId>,
     pub msg_type: RoomMessageType,
 }
 
-pub type UserId = u64;
+pub type UserId = Uuid;
 
 #[derive(Serialize)]
 pub struct Room {
@@ -101,7 +101,7 @@ pub enum RoomState {
 
 #[derive(Copy, Clone, Debug, Serialize)]
 pub struct User {
-    id: u64,
+    id: UserId,
     name: ArrayString<typenum::U12>,
     bot: bool,
 }
@@ -109,7 +109,7 @@ pub struct User {
 impl Default for User {
     fn default() -> Self {
         let mut rng = rand::thread_rng();
-        let id = rng.next_u64();
+        let id = Uuid::new_v4();
         User {
             id,
             name: ArrayString::from_chars(format!("Bot{}", rng.next_u32()).chars()),
@@ -125,7 +125,7 @@ impl User {
             ..self
         }
     }
-    pub fn with_id(self, id: u64) -> Self {
+    pub fn with_id(self, id: UserId) -> Self {
         Self { id, ..self }
     }
 }
@@ -153,7 +153,7 @@ fn convert_stack_to_card_player_card(stack: &CardStack) -> [Option<PlayerCard>; 
 }
 
 // only JOIN and get state are allowed for viewers
-fn is_valid_msg(room: &Room, user_id: u64) -> bool {
+fn is_valid_msg(room: &Room, user_id: UserId) -> bool {
     !room.viewers.contains(&user_id)
 }
 
@@ -216,7 +216,7 @@ pub async fn room_task(
                                 .with_id(player)
                         });
 
-                        let players: [(u64, bool); PLAYER_NUMBER] =
+                        let players: [(UserId, bool); PLAYER_NUMBER] =
                             users.map(|user| (user.id, user.bot));
 
                         let game = Game::new(players, DEFAULT_HANDS);
@@ -461,6 +461,9 @@ impl RoomError {
 
 #[cfg(test)]
 mod test {
+
+    use uuid::Uuid;
+
     use crate::room::RoomMessage;
 
     use super::User;
@@ -479,12 +482,13 @@ mod test {
             serde_json::from_str::<RoomMessage>(
                 r#"
             {
-               "from_user_id": 98,
-               "to_user_id" : 92,
+               "from_user_id": "96f6b528-4fdc-47ed-8c50-277b13587fc1",
+               "to_user_id" : "96f6b528-4fdc-47ed-8c50-277b13587fcÉ",
                "msg_type": "JOIN"
             }
             "#
             )
+            .unwrap()
         );
     }
     #[test]
@@ -492,9 +496,9 @@ mod test {
         println!(
             "{}",
             serde_json::to_string_pretty(&RoomMessage {
-                from_user_id: Some(123),
-                to_user_id: Some(456),
-                msg_type: crate::room::RoomMessageType::Joined(123)
+                from_user_id: Some(Uuid::new_v4()),
+                to_user_id: Some(Uuid::new_v4()),
+                msg_type: crate::room::RoomMessageType::Joined(Uuid::new_v4())
             })
             .unwrap()
         );

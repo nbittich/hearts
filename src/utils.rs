@@ -57,12 +57,18 @@ pub async fn build_guest_session_if_none<B>(
 #[cfg(test)]
 mod test {
     use lib_hearts::PLAYER_NUMBER;
+    use uuid::Uuid;
 
     use crate::{constants::ID_PLAYER_BOT, room::User};
 
     #[test]
     fn test_to_static_array1() {
-        let players: [Option<u64>; PLAYER_NUMBER] = [Some(1), Some(2), Some(3), Some(4)];
+        let players: [Option<Uuid>; PLAYER_NUMBER] = [
+            Some(Uuid::from_u128(1)),
+            Some(Uuid::from_u128(2)),
+            Some(Uuid::from_u128(3)),
+            Some(Uuid::from_u128(4)),
+        ];
         let users: [User; PLAYER_NUMBER] = players.map(|player| {
             let Some(player) = player else {unreachable!()};
             User::default()
@@ -70,6 +76,6 @@ mod test {
                 .with_id(player)
         });
 
-        dbg!(serde_json::to_string(&users).unwrap());
+        println!("{}", serde_json::to_string(&users).unwrap());
     }
 }
