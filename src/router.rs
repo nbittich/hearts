@@ -1,8 +1,9 @@
 use crate::{
     constants::{COOKIE as COOKIE_NAME, USER_ID},
-    room::{Room, User},
+    room::{Room, Rooms, User, Users},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
     utils::service_error,
+    websocket::ws_handler,
 };
 use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
@@ -15,16 +16,12 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use minijinja::context;
-use std::{error::Error, sync::Arc};
-use tokio::sync::RwLock;
+use std::error::Error;
 use tower::ServiceBuilder;
 use tower_http::services::ServeDir;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use uuid::Uuid;
-
-pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
-pub type Users = Arc<RwLock<Vec<User>>>;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -57,6 +54,7 @@ pub fn get_router(rooms: Rooms, users: Users, store: MemoryStore) -> Router {
     Router::new()
         .route("/create-room", post(create_room))
         .route("/room/:id", get(get_room))
+        .route("/room-connect/:id", get(ws_handler))
         .route("/", get(index_page))
         .nest_service("/assets", serve_dir)
         .route_layer(

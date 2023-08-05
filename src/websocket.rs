@@ -1,11 +1,6 @@
-use std::{
-    borrow::Cow,
-    net::SocketAddr,
-    ops::ControlFlow,
-    sync::{Arc, RwLock},
-};
+use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow};
 
-use async_session::SessionStore;
+use async_session::{MemoryStore, SessionStore};
 use axum::{
     extract::{
         ws::{CloseFrame, Message, WebSocket},
@@ -13,7 +8,7 @@ use axum::{
     },
     headers,
     http::StatusCode,
-    response::IntoResponse,
+    response::{ErrorResponse, IntoResponse},
     TypedHeader,
 };
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
@@ -22,15 +17,15 @@ use uuid::Uuid;
 
 use crate::{
     constants::{COOKIE, USER_ID},
-    room::{Room, RoomMessage, UserId},
+    room::{RoomMessage, Rooms, UserId},
     utils::{service_error, HomePageRedirect},
 };
 
-async fn ws_handler(
-    ws: WebSocketUpgrade,
+pub async fn ws_handler(
     Path(room_id): Path<Uuid>,
-    State(store): State<impl SessionStore>,
-    State(rooms): State<Arc<RwLock<Vec<Room>>>>,
+    State(store): State<MemoryStore>,
+    State(rooms): State<Rooms>,
+    ws: WebSocketUpgrade,
     cookies: Option<TypedHeader<headers::Cookie>>,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -51,17 +46,19 @@ async fn ws_handler(
         String::from("Unknown browser")
     };
     tracing::info!("`{user_id} with agent {user_agent}` at {addr} connected.");
-    let rooms = rooms.read().map_err(service_error)?;
+    let rooms_guard = rooms.read().await;
 
-    let room = rooms
-        .iter()
-        .find(|r| r.id == room_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-    let sender = room.sender.clone();
+    for r in rooms_guard.iter() {
+        let room = r.read().await;
+        if room.id == room_id {
+            let sender = room.sender.clone();
 
-    axum::response::Result::Ok(
-        ws.on_upgrade(move |socket| handle_socket(socket, addr, sender, user_id)),
-    )
+            return axum::response::Result::Ok(
+                ws.on_upgrade(move |socket| handle_socket(socket, addr, sender, user_id)),
+            );
+        }
+    }
+    Err(ErrorResponse::from(StatusCode::NOT_FOUND))
 }
 
 async fn handle_socket(

@@ -23,7 +23,8 @@ use tokio::{
 use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U1>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
-
+pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
+pub type Users = Arc<RwLock<Vec<User>>>;
 #[derive(Serialize, Copy, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
     pub type_card: TypeCard,
@@ -32,7 +33,7 @@ pub struct PlayerCard {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[serde(rename_all = "camelCase")]
 pub enum RoomMessageType {
     Join,
     Joined(UserId),
@@ -66,6 +67,7 @@ pub enum RoomMessageType {
         current_hand: u8,
         hands: u8,
     },
+    WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -160,7 +162,7 @@ fn is_valid_msg(room: &Room, user_id: UserId) -> bool {
 }
 
 impl Room {
-    pub async fn new(users: Arc<RwLock<Vec<User>>>) -> Arc<RwLock<Room>> {
+    pub async fn new(users: Users) -> Arc<RwLock<Room>> {
         let (sender, receiver) = broadcast::channel(ABRITRATRY_CHANNEL_SIZE);
         let id = Uuid::new_v4();
         let room = Room {
@@ -273,7 +275,7 @@ async fn send_message_after_cards_replaced(
 }
 pub async fn room_task(
     room: Arc<RwLock<Room>>,
-    users: Arc<RwLock<Vec<User>>>,
+    users: Users,
     id: Uuid,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     tracing::info!("setup room task {id}...");
@@ -462,11 +464,11 @@ pub async fn room_task(
             RoomMessageType::GetCurrentState => {
                 let room_guard = room.read().await;
                 match &room_guard.state {
-                    RoomState::WaitingForPlayers(_) => {
+                    RoomState::WaitingForPlayers(players_slot) => {
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: Some(from_user_id),
-                            msg_type: RoomMessageType::PlayerError(GameError::StateError),
+                            msg_type: RoomMessageType::WaitingForPlayers(*players_slot),
                         })?;
                     }
                     RoomState::Started(players, game) | RoomState::Done(players, game) => {
