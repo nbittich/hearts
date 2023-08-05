@@ -8,14 +8,14 @@ edition = "2021"
 [dependencies]
 arraystring = { version = "0.3.0", features = ["serde-traits"] }
 async-session = "3.0.0"
-axum = { version = "0.6.19", features = ["ws", "headers"] }
-axum-extra = { version = "0.7.5", features = ["cookie"] }
+axum = { version = "0.6.20", features = ["ws", "headers"] }
+axum-extra = { version = "0.7.7", features = ["cookie"] }
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
-lib-hearts = "0.1.19"
+lib-hearts = "0.1.20"
 minijinja = "1.0.5"
 rand = "0.8.5"
-serde = { version = "1.0.178", features = ["derive", "rc"] }
+serde = { version = "1.0.181", features = ["derive", "rc"] }
 serde_json = "1.0.104"
 tokio = { version = "1.29.1", features = ["full"] }
 tower = "0.4.13"

@@ -1,5 +1,3 @@
-use uuid::Uuid;
-
 pub const MAX_ROOMS: usize = 100;
 pub const CORS_ALLOW_ORIGIN: &str = "CORS_ALLOW_ORIGIN";
 pub const BODY_SIZE_LIMIT: &str = "BODY_SIZE_LIMIT";
@@ -12,15 +10,7 @@ pub const SERVICE_COLLECTION_NAME: &str = "SERVICE_COLLECTION_NAME";
 pub const COOKIE: &str = "HeartsCookie";
 pub const USER_ID: &str = "X_USER_ID";
 pub const ABRITRATRY_CHANNEL_SIZE: usize = 128;
-pub const ID_PLAYER_BOT: Uuid = Uuid::from_u128(0);
 pub const DEFAULT_HANDS: u8 = 3;
 
 #[cfg(test)]
-mod test {
-    use super::ID_PLAYER_BOT;
-
-    #[test]
-    fn check_uuid() {
-        println!("{}", serde_json::to_string_pretty(&ID_PLAYER_BOT).unwrap());
-    }
-}
+mod test {}

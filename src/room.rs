@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, ID_PLAYER_BOT};
+use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS};
 use arraystring::ArrayString;
 use lib_hearts::{
     get_card_by_idx, Card, Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard,
@@ -39,7 +39,8 @@ pub enum RoomMessageType {
     ViewerJoined(UserId),
     GetCards,
     ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
-    Replaceards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
+    ReplaceCards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
+    ReplaceCardsBot,
     NewHand {
         player_ids_in_order: [UserId; PLAYER_NUMBER],
         current_player_id: UserId,
@@ -56,6 +57,7 @@ pub enum RoomMessageType {
     End,
     PlayerError(GameError),
     Play(PlayerCard),
+    PlayBot,
     GetCurrentState,
     State {
         player_scores: [PlayerState; PLAYER_NUMBER],
@@ -158,7 +160,7 @@ fn is_valid_msg(room: &Room, user_id: UserId) -> bool {
 }
 
 impl Room {
-    pub async fn new() -> Arc<RwLock<Room>> {
+    pub async fn new(users: Arc<RwLock<Vec<User>>>) -> Arc<RwLock<Room>> {
         let (sender, receiver) = broadcast::channel(ABRITRATRY_CHANNEL_SIZE);
         let id = Uuid::new_v4();
         let room = Room {
@@ -172,7 +174,7 @@ impl Room {
         let room = Arc::new(RwLock::new(room));
 
         let (clone, room) = (room.clone(), room);
-        let task = tokio::spawn(room_task(clone, id));
+        let task = tokio::spawn(room_task(clone, users, id));
 
         let mut room_guard = room.write().await;
         room_guard.task = Some(task);
@@ -181,15 +183,103 @@ impl Room {
     }
 }
 
+// send messages and check state after each play
+// if game is done, return true
+async fn send_message_after_played(
+    game: &mut Game,
+    sender: &Sender<RoomMessage>,
+) -> Result<bool, Box<dyn Error + Send + Sync>> {
+    match game.state {
+        GameState::PlayingHand {
+            stack,
+            current_scores,
+        } => {
+            let Some(current_player_id) = game.current_player_id() else {unreachable!()};
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: None,
+                msg_type: RoomMessageType::NextPlayerToPlay {
+                    current_player_id,
+                    stack: convert_stack_to_card_player_card(&stack),
+                },
+            })?;
+        }
+        GameState::ComputeScore {
+            stack,
+            current_scores,
+        } => {
+            game.compute_score()?;
+            match &game.state {
+                GameState::EndHand => {
+                    game.deal_cards()?;
+                    let current_player_id = game.current_player_id().ok_or("should not happen")?;
+
+                    let player_ids_in_order = game.player_ids_in_order();
+                    sender.send(RoomMessage {
+                        from_user_id: None,
+                        to_user_id: None,
+                        msg_type: RoomMessageType::NewHand {
+                            player_ids_in_order,
+                            current_player_id,
+                            hands: game.hands,
+                            current_hand: game.current_hand + 1,
+                        },
+                    })?;
+                }
+                GameState::End => return Ok(true),
+                _ => unreachable!("this cannot happen brazza"),
+            }
+        }
+
+        _ => unreachable!("this cannot happen too brazza"),
+    }
+    Ok(false)
+}
+async fn send_message_after_cards_replaced(
+    game: &Game,
+    sender: &Sender<RoomMessage>,
+    next_player_id: Uuid,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match &game.state {
+        GameState::ExchangeCards { commands: _ } => {
+            // send change cards
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: None,
+                msg_type: RoomMessageType::NextPlayerToReplaceCards {
+                    current_player_id: next_player_id,
+                },
+            })?;
+        }
+        GameState::PlayingHand {
+            stack,
+            current_scores: _,
+        } => {
+            // send play event
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: None,
+                msg_type: RoomMessageType::NextPlayerToPlay {
+                    current_player_id: next_player_id,
+                    stack: convert_stack_to_card_player_card(stack),
+                },
+            })?;
+        }
+        any => {
+            tracing::warn!("receiving weird event from game after exchange cards: {any:?}");
+        }
+    }
+    Ok(())
+}
 pub async fn room_task(
     room: Arc<RwLock<Room>>,
+    users: Arc<RwLock<Vec<User>>>,
     id: Uuid,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     tracing::info!("setup room task {id}...");
     let (sender, mut receiver) = {
         let room_guard = room.read().await;
-        let sender = &room_guard.sender;
-        let sender = sender.clone();
+        let sender = room_guard.sender.clone();
         let receiver = sender.subscribe();
         (sender, receiver)
     };
@@ -197,6 +287,7 @@ pub async fn room_task(
     tracing::info!("listening task {id}...");
     while let Ok(msg) = receiver.recv().await {
         let Some(from_user_id) = msg.from_user_id else {continue};
+
         match msg.msg_type {
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
@@ -209,11 +300,14 @@ pub async fn room_task(
                             msg_type: RoomMessageType::Joined(from_user_id),
                         })?;
                     } else {
+                        let users_guard = users.read().await;
                         let users: [User; PLAYER_NUMBER] = players.map(|player| {
                             let Some(player) = player else {unreachable!()};
-                            User::default()
-                                .human(player != ID_PLAYER_BOT)
-                                .with_id(player)
+                            users_guard
+                                .iter()
+                                .find(|p| p.id == player)
+                                .cloned()
+                                .unwrap_or_else(|| User::default().human(false).with_id(player))
                         });
 
                         let players: [(UserId, bool); PLAYER_NUMBER] =
@@ -264,14 +358,33 @@ pub async fn room_task(
                     })?;
                 }
             }
-            RoomMessageType::Replaceards(player_cards_exchange) => {
+
+            RoomMessageType::ReplaceCardsBot => {
+                let mut room_guard = room.write().await;
+
+                if let RoomState::Started(players, game) = &mut room_guard.state {
+                    if game.current_player_id() == Some(from_user_id)
+                    // we don't check if player
+                    // is a bot or not, in order to be able to implement timeout later
+                    {
+                        if let GameState::ExchangeCards { commands: _ } = &game.state {
+                            game.play_bot()?;
+                            let Some(next_player_id) = game.current_player_id() else {unreachable!()};
+                            send_message_after_cards_replaced(&game, &sender, next_player_id)
+                                .await?;
+                        }
+                    }
+                }
+            }
+
+            RoomMessageType::ReplaceCards(player_cards_exchange) => {
                 let mut room_guard = room.write().await;
                 if !is_valid_msg(&room_guard, from_user_id) {
                     continue;
                 }
                 if let RoomState::Started(players, game) = &mut room_guard.state {
-                    if let GameState::ExchangeCards { commands: _ } = &game.state {
-                        if game.current_player_id() == Some(from_user_id) {
+                    if game.current_player_id() == Some(from_user_id) {
+                        if let GameState::ExchangeCards { commands: _ } = &game.state {
                             let command = player_cards_exchange.map(|pc| pc.position_in_deck);
                             if let Err(game_error) = game.exchange_cards(command) {
                                 sender.send(RoomMessage {
@@ -281,36 +394,35 @@ pub async fn room_task(
                                 })?;
                             } else {
                                 let Some(next_player_id) = game.current_player_id() else {unreachable!()};
+                                send_message_after_cards_replaced(&game, &sender, next_player_id)
+                                    .await?;
+                            }
+                        }
+                    }
+                }
+            }
+            RoomMessageType::PlayBot => {
+                let mut room_guard = room.write().await;
 
-                                match &game.state {
-                                    GameState::ExchangeCards { commands: _ } => {
-                                        // send change cards
-                                        sender.send(RoomMessage {
-                                            from_user_id: None,
-                                            to_user_id: None,
-                                            msg_type: RoomMessageType::NextPlayerToReplaceCards {
-                                                current_player_id: next_player_id,
-                                            },
-                                        })?;
-                                    }
-                                    GameState::PlayingHand {
-                                        stack,
-                                        current_scores: _,
-                                    } => {
-                                        // send play event
-                                        sender.send(RoomMessage {
-                                            from_user_id: None,
-                                            to_user_id: None,
-                                            msg_type: RoomMessageType::NextPlayerToPlay {
-                                                current_player_id: next_player_id,
-                                                stack: convert_stack_to_card_player_card(stack),
-                                            },
-                                        })?;
-                                    }
-                                    any => {
-                                        tracing::warn!("receiving weird event from game after exchange cards: {any:?}");
-                                    }
-                                }
+                if let RoomState::Started(players, game) = &mut room_guard.state {
+                    if game.current_player_id() == Some(from_user_id)
+                    // we don't check if player
+                    // is a bot or not, in order to be able to implement timeout later
+                    {
+                        if let GameState::PlayingHand {
+                            stack: _,
+                            current_scores: _,
+                        } = &game.state
+                        {
+                            game.play_bot()?;
+                            if send_message_after_played(game, &sender).await? {
+                                // game is done, update state
+                                room_guard.state = RoomState::Done(*players, *game);
+                                sender.send(RoomMessage {
+                                    from_user_id: None,
+                                    to_user_id: None,
+                                    msg_type: RoomMessageType::End,
+                                })?;
                             }
                         }
                     }
@@ -322,76 +434,33 @@ pub async fn room_task(
                     continue;
                 }
                 if let RoomState::Started(players, game) = &mut room_guard.state {
-                    if let GameState::PlayingHand {
-                        stack: _,
-                        current_scores: _,
-                    } = &game.state
-                    {
-                        if let Err(game_error) = game.play(player_card.position_in_deck) {
-                            sender.send(RoomMessage {
-                                from_user_id: None,
-                                to_user_id: Some(from_user_id),
-                                msg_type: RoomMessageType::PlayerError(game_error),
-                            })?;
-                        } else {
-                            match game.state {
-                                GameState::PlayingHand {
-                                    stack,
-                                    current_scores,
-                                } => {
-                                    let Some(current_player_id) = game.current_player_id() else {unreachable!()};
+                    if game.current_player_id() == Some(from_user_id) {
+                        if let GameState::PlayingHand {
+                            stack: _,
+                            current_scores: _,
+                        } = &game.state
+                        {
+                            if let Err(game_error) = game.play(player_card.position_in_deck) {
+                                sender.send(RoomMessage {
+                                    from_user_id: None,
+                                    to_user_id: Some(from_user_id),
+                                    msg_type: RoomMessageType::PlayerError(game_error),
+                                })?;
+                            } else {
+                                if send_message_after_played(game, &sender).await? {
+                                    // game is done, update state
+                                    room_guard.state = RoomState::Done(*players, *game);
                                     sender.send(RoomMessage {
                                         from_user_id: None,
                                         to_user_id: None,
-                                        msg_type: RoomMessageType::NextPlayerToPlay {
-                                            current_player_id,
-                                            stack: convert_stack_to_card_player_card(&stack),
-                                        },
+                                        msg_type: RoomMessageType::End,
                                     })?;
                                 }
-                                GameState::ComputeScore {
-                                    stack,
-                                    current_scores,
-                                } => {
-                                    game.compute_score()?;
-                                    match &game.state {
-                                        GameState::EndHand => {
-                                            game.deal_cards()?;
-                                            let current_player_id = game
-                                                .current_player_id()
-                                                .ok_or("should not happen")?;
-
-                                            let player_ids_in_order = game.player_ids_in_order();
-                                            sender.send(RoomMessage {
-                                                from_user_id: None,
-                                                to_user_id: None,
-                                                msg_type: RoomMessageType::NewHand {
-                                                    player_ids_in_order,
-                                                    current_player_id,
-                                                    hands: game.hands,
-                                                    current_hand: game.current_hand + 1,
-                                                },
-                                            })?;
-                                        }
-                                        GameState::End => {
-                                            room_guard.state = RoomState::Done(*players, *game);
-                                            sender.send(RoomMessage {
-                                                from_user_id: None,
-                                                to_user_id: None,
-                                                msg_type: RoomMessageType::End,
-                                            })?;
-                                        }
-                                        _ => unreachable!("this cannot happen brazza"),
-                                    }
-                                }
-
-                                _ => unreachable!("this cannot happen too brazza"),
                             }
                         }
                     }
                 }
             }
-
             RoomMessageType::GetCurrentState => {
                 let room_guard = room.read().await;
                 match &room_guard.state {

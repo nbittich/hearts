@@ -1,16 +1,19 @@
 use crate::{
-    room::Room,
+    constants::{COOKIE as COOKIE_NAME, USER_ID},
+    room::{Room, User},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
-    utils::{build_guest_session_if_none, service_error},
+    utils::service_error,
 };
-use async_session::MemoryStore;
+use async_session::{MemoryStore, Session, SessionStore};
 use axum::{
-    extract::{Path, State},
-    http::StatusCode,
+    extract::{FromRef, Path, State},
+    http::{header::SET_COOKIE, Request, StatusCode},
+    middleware::Next,
     response::{ErrorResponse, Html, IntoResponse, Redirect},
     routing::{get, post},
     Router,
 };
+use axum_extra::extract::CookieJar;
 use minijinja::context;
 use std::{error::Error, sync::Arc};
 use tokio::sync::RwLock;
@@ -19,10 +22,38 @@ use tower_http::services::ServeDir;
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use uuid::Uuid;
-pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 
-pub fn get_router(rooms: Rooms, store: MemoryStore) -> Router {
+pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
+pub type Users = Arc<RwLock<Vec<User>>>;
+
+#[derive(Clone)]
+pub struct AppState {
+    pub rooms: Rooms,
+    pub users: Users,
+    pub store: MemoryStore,
+}
+impl FromRef<AppState> for Rooms {
+    fn from_ref(app_state: &AppState) -> Rooms {
+        app_state.rooms.clone()
+    }
+}
+impl FromRef<AppState> for Users {
+    fn from_ref(app_state: &AppState) -> Users {
+        app_state.users.clone()
+    }
+}
+impl FromRef<AppState> for MemoryStore {
+    fn from_ref(app_state: &AppState) -> MemoryStore {
+        app_state.store.clone()
+    }
+}
+pub fn get_router(rooms: Rooms, users: Users, store: MemoryStore) -> Router {
     let serve_dir = ServeDir::new("assets");
+    let state = AppState {
+        rooms,
+        users,
+        store,
+    };
     Router::new()
         .route("/create-room", post(create_room))
         .route("/room/:id", get(get_room))
@@ -30,12 +61,11 @@ pub fn get_router(rooms: Rooms, store: MemoryStore) -> Router {
         .nest_service("/assets", serve_dir)
         .route_layer(
             ServiceBuilder::new().layer(axum::middleware::from_fn_with_state(
-                store.clone(),
+                state.clone(),
                 build_guest_session_if_none,
             )),
         )
-        .with_state(rooms)
-        .with_state(store)
+        .with_state(state)
 }
 pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
     let subscriber = FmtSubscriber::builder()
@@ -58,8 +88,11 @@ async fn index_page(State(rooms): State<Rooms>) -> axum::response::Result<impl I
     Ok(Html::from(templ))
 }
 
-async fn create_room(State(rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
-    let room = Room::new().await;
+async fn create_room(
+    State(rooms): State<Rooms>,
+    State(users): State<Users>,
+) -> axum::response::Result<impl IntoResponse> {
+    let room = Room::new(users).await;
     let (clone, room) = (room.clone(), room);
     let room_guard = clone.read().await;
     let response = Redirect::to(&format!("/room/{}", room_guard.id));
@@ -92,4 +125,37 @@ async fn get_room(
         }
     }
     Err(ErrorResponse::from(StatusCode::NOT_FOUND))
+}
+
+pub async fn build_guest_session_if_none<B>(
+    State(store): State<MemoryStore>,
+    State(users): State<Users>,
+    request: Request<B>,
+    next: Next<B>,
+) -> axum::response::Result<impl IntoResponse> {
+    let cookies = CookieJar::from_headers(request.headers());
+    let mut response = next.run(request).await;
+    if cookies.get(COOKIE_NAME).is_none() {
+        tracing::debug!("session doesn't exist, create one");
+        let id = Uuid::new_v4();
+        let mut session = Session::new();
+        session.insert(USER_ID, id).map_err(service_error)?;
+        // Store session and get corresponding cookie
+        let cookie = store.store_session(session).await.map_err(service_error)?;
+        tracing::debug!("{cookie:?}");
+        let cookie = cookie.ok_or_else(|| service_error("failed  to store session"))?;
+        // Build the cookie
+        let cookie = format!("{}={}; SameSite=Lax; Path=/", COOKIE_NAME, cookie);
+        // Set cookie
+        response
+            .headers_mut()
+            .insert(SET_COOKIE, cookie.parse().map_err(service_error)?);
+        let user = User::default().with_id(id).human(true);
+        let mut users_guard = users.write().await;
+        users_guard.push(user);
+    }
+
+    // do something with `response`...
+
+    Ok(response)
 }
