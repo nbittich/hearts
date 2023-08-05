@@ -370,7 +370,7 @@ pub async fn room_task(
                         if let GameState::ExchangeCards { commands: _ } = &game.state {
                             game.play_bot()?;
                             let Some(next_player_id) = game.current_player_id() else {unreachable!()};
-                            send_message_after_cards_replaced(&game, &sender, next_player_id)
+                            send_message_after_cards_replaced(game, &sender, next_player_id)
                                 .await?;
                         }
                     }
@@ -394,7 +394,7 @@ pub async fn room_task(
                                 })?;
                             } else {
                                 let Some(next_player_id) = game.current_player_id() else {unreachable!()};
-                                send_message_after_cards_replaced(&game, &sender, next_player_id)
+                                send_message_after_cards_replaced(game, &sender, next_player_id)
                                     .await?;
                             }
                         }
@@ -446,16 +446,14 @@ pub async fn room_task(
                                     to_user_id: Some(from_user_id),
                                     msg_type: RoomMessageType::PlayerError(game_error),
                                 })?;
-                            } else {
-                                if send_message_after_played(game, &sender).await? {
-                                    // game is done, update state
-                                    room_guard.state = RoomState::Done(*players, *game);
-                                    sender.send(RoomMessage {
-                                        from_user_id: None,
-                                        to_user_id: None,
-                                        msg_type: RoomMessageType::End,
-                                    })?;
-                                }
+                            } else if send_message_after_played(game, &sender).await? {
+                                // game is done, update state
+                                room_guard.state = RoomState::Done(*players, *game);
+                                sender.send(RoomMessage {
+                                    from_user_id: None,
+                                    to_user_id: None,
+                                    msg_type: RoomMessageType::End,
+                                })?;
                             }
                         }
                     }
