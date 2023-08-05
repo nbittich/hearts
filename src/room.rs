@@ -25,14 +25,14 @@ pub type CardEmoji = ArrayString<typenum::U1>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 pub type Users = Arc<RwLock<Vec<User>>>;
-#[derive(Serialize, Copy, Clone, Debug, Deserialize)]
+#[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
     pub type_card: TypeCard,
     pub emoji: CardEmoji,
     pub position_in_deck: PositionInDeck,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, PartialEq, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum RoomMessageType {
     Join,
@@ -70,7 +70,8 @@ pub enum RoomMessageType {
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, PartialEq, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
 pub struct RoomMessage {
     // if from_user_id is none, the message comes from system
     // if to_user_id is none and from_user_id is some, the message is for system
@@ -531,6 +532,8 @@ impl RoomError {
 #[cfg(test)]
 mod test {
 
+    use std::str::FromStr;
+
     use uuid::Uuid;
 
     use crate::room::RoomMessage;
@@ -546,14 +549,18 @@ mod test {
     }
     #[test]
     fn test_skip_deserializing() {
-        println!(
-            "{:?}",
+        assert_eq!(
+            RoomMessage {
+                from_user_id: Uuid::from_str("96f6b528-4fdc-47ed-8c50-277b13587fc1").ok(),
+                to_user_id: None,
+                msg_type: crate::room::RoomMessageType::Join
+            },
             serde_json::from_str::<RoomMessage>(
                 r#"
             {
-               "from_user_id": "96f6b528-4fdc-47ed-8c50-277b13587fc1",
-               "to_user_id" : "96f6b528-4fdc-47ed-8c50-277b13587fcÉ",
-               "msg_type": "JOIN"
+               "fromUserId": "96f6b528-4fdc-47ed-8c50-277b13587fc1",
+               "toUserId" : "96f6b528-4fdc-47ed-8c50-277b13587fcÉ",
+               "msgType": "join"
             }
             "#
             )
