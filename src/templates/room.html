@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block title %}{{ super() }}{% endblock %}
+{% block javascript %}
+<script src="/assets/js/app.js"> </script>
+{% endblock %} 
+
 {% block body %}
 <p>Room #{{room.id}}</p>
 

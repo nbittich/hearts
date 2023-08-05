@@ -57,6 +57,10 @@ pub fn get_router(rooms: Rooms, users: Users, store: MemoryStore) -> Router {
         .route("/room-connect/:id", get(ws_handler))
         .route("/", get(index_page))
         .nest_service("/assets", serve_dir)
+        .route(
+            "/favicon.ico",
+            get(|| async { Redirect::permanent("/assets/icon/favicon.ico") }),
+        )
         .route_layer(
             ServiceBuilder::new().layer(axum::middleware::from_fn_with_state(
                 state.clone(),
