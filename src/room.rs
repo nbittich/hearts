@@ -262,12 +262,9 @@ pub async fn room_task(
         match msg.msg_type {
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
-                if let &mut RoomState::WaitingForPlayers(mut players) = &mut room_guard.state {
-                    if players.iter().any(|p| p == &Some(from_user_id))
-                        || room_guard.viewers.iter().any(|p| p == &from_user_id)
-                        || players.iter().all(|p| p.is_some())
-                    // should never happen
-                    {
+                let is_viewer = room_guard.viewers.iter().any(|p| p == &from_user_id);
+                if let RoomState::WaitingForPlayers(ref mut players) = room_guard.state {
+                    if players.iter().any(|p| p == &Some(from_user_id)) || is_viewer {
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: Some(from_user_id),
@@ -318,8 +315,6 @@ pub async fn room_task(
                                 hands: game.hands,
                             },
                         })?;
-                    } else {
-                        room_guard.state = RoomState::WaitingForPlayers(players);
                     }
                 } else {
                     room_guard.viewers.insert(from_user_id);
@@ -335,7 +330,7 @@ pub async fn room_task(
                 if !is_valid_msg(&room_guard, from_user_id) {
                     continue;
                 }
-                if let RoomState::Started(users, game) = &room_guard.state {
+                if let RoomState::Started(ref users, ref game) = room_guard.state {
                     let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
                         .get_player_cards(from_user_id)
                         .map(convert_card_to_player_card);
@@ -350,7 +345,7 @@ pub async fn room_task(
             RoomMessageType::ReplaceCardsBot => {
                 let mut room_guard = room.write().await;
 
-                if let RoomState::Started(players, game) = &mut room_guard.state {
+                if let RoomState::Started(ref players, ref mut game) = room_guard.state {
                     if game.current_player_id() == Some(from_user_id)
                     // we don't check if player
                     // is a bot or not, in order to be able to implement timeout later
@@ -370,7 +365,7 @@ pub async fn room_task(
                 if !is_valid_msg(&room_guard, from_user_id) {
                     continue;
                 }
-                if let RoomState::Started(players, game) = &mut room_guard.state {
+                if let RoomState::Started(ref players, ref mut game) = room_guard.state {
                     if game.current_player_id() == Some(from_user_id) {
                         if let GameState::ExchangeCards { commands: _ } = &game.state {
                             let command = player_cards_exchange.map(|pc| pc.position_in_deck);
@@ -392,7 +387,7 @@ pub async fn room_task(
             RoomMessageType::PlayBot => {
                 let mut room_guard = room.write().await;
 
-                if let RoomState::Started(players, game) = &mut room_guard.state {
+                if let RoomState::Started(ref mut players, ref mut game) = room_guard.state {
                     if game.current_player_id() == Some(from_user_id)
                     // we don't check if player
                     // is a bot or not, in order to be able to implement timeout later
@@ -421,7 +416,7 @@ pub async fn room_task(
                 if !is_valid_msg(&room_guard, from_user_id) {
                     continue;
                 }
-                if let RoomState::Started(players, game) = &mut room_guard.state {
+                if let RoomState::Started(ref mut players, ref mut game) = room_guard.state {
                     if game.current_player_id() == Some(from_user_id) {
                         if let GameState::PlayingHand {
                             stack: _,
@@ -449,15 +444,16 @@ pub async fn room_task(
             }
             RoomMessageType::GetCurrentState => {
                 let room_guard = room.read().await;
-                match &room_guard.state {
-                    RoomState::WaitingForPlayers(players_slot) => {
+                match room_guard.state {
+                    RoomState::WaitingForPlayers(ref players_slot) => {
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: Some(from_user_id),
                             msg_type: RoomMessageType::WaitingForPlayers(*players_slot),
                         })?;
                     }
-                    RoomState::Started(players, game) | RoomState::Done(players, game) => {
+                    RoomState::Started(ref players, ref game)
+                    | RoomState::Done(ref players, ref game) => {
                         // send current state
                         let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
                             .get_player_cards(from_user_id)
