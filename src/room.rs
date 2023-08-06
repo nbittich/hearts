@@ -387,7 +387,7 @@ pub async fn room_task(
             RoomMessageType::PlayBot => {
                 let mut room_guard = room.write().await;
 
-                if let RoomState::Started(ref mut players, ref mut game) = room_guard.state {
+                if let RoomState::Started(ref players, ref mut game) = room_guard.state {
                     if game.current_player_id() == Some(from_user_id)
                     // we don't check if player
                     // is a bot or not, in order to be able to implement timeout later
