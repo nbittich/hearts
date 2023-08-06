@@ -5,9 +5,9 @@ use serde::Serialize;
 
 static ENGINE: OnceLock<Environment<'static>> = OnceLock::new();
 
-pub const INDEX_PAGE: &str = "index.html";
-pub const ROOM_PAGE: &str = "room.html";
-pub const BASE_LAYOUT: &str = "base.html";
+pub static INDEX_PAGE: &str = "index.html";
+pub static ROOM_PAGE: &str = "room.html";
+pub static BASE_LAYOUT: &str = "base.html";
 
 pub fn get_template<S: Serialize>(tpl: &str, ctx: S) -> Result<String, Box<dyn Error>> {
     let engine = {

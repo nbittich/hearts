@@ -1,6 +1,6 @@
 use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow};
 
-use async_session::{MemoryStore, SessionStore};
+use async_session::MemoryStore;
 use axum::{
     extract::{
         ws::{CloseFrame, Message, WebSocket},
@@ -16,35 +16,25 @@ use tokio::sync::broadcast::Sender;
 use uuid::Uuid;
 
 use crate::{
-    constants::{COOKIE, USER_ID},
-    room::{RoomMessage, Rooms, UserId},
-    utils::{service_error, HomePageRedirect},
+    room::{RoomMessage, Rooms},
+    user::{User, UserId},
 };
 
 pub async fn ws_handler(
+    ws: WebSocketUpgrade,
     Path(room_id): Path<Uuid>,
     State(store): State<MemoryStore>,
     State(rooms): State<Rooms>,
-    ws: WebSocketUpgrade,
-    cookies: Option<TypedHeader<headers::Cookie>>,
+    user: User,
     user_agent: Option<TypedHeader<headers::UserAgent>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> axum::response::Result<impl IntoResponse> {
-    let cookies = cookies.ok_or_else(|| service_error("cookie not present"))?;
-    let session_cookie = cookies.get(COOKIE).ok_or(HomePageRedirect)?;
-    let session = store
-        .load_session(session_cookie.to_string())
-        .await
-        .ok()
-        .flatten()
-        .ok_or(HomePageRedirect)?;
-
-    let user_id = session.get::<UserId>(USER_ID).ok_or(HomePageRedirect)?;
     let user_agent = if let Some(TypedHeader(user_agent)) = user_agent {
         user_agent.to_string()
     } else {
         String::from("Unknown browser")
     };
+    let user_id = user.id;
     tracing::info!("`{user_id} with agent {user_agent}` at {addr} connected.");
     let rooms_guard = rooms.read().await;
 
@@ -137,7 +127,10 @@ async fn handle_socket(
             // print message and break if instructed to do so
             match process_message(&msg, who) {
                 ControlFlow::Continue(Some(room_msg)) => {
-                    if let Err(e) = user_sender.send(room_msg) {
+                    if let Err(e) = user_sender.send(RoomMessage {
+                        from_user_id: Some(user_id),
+                        ..room_msg
+                    }) {
                         tracing::error!("could not send message to room {e:?}, message: {msg:?}");
                         break;
                     }

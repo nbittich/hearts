@@ -5,13 +5,15 @@ use std::{
     sync::Arc,
 };
 
-use crate::constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS};
+use crate::{
+    constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS},
+    user::{User, UserId, Users},
+};
 use arraystring::ArrayString;
 use lib_hearts::{
     get_card_by_idx, Card, Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard,
     PLAYER_CARD_SIZE, PLAYER_NUMBER,
 };
-use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync::{
@@ -24,7 +26,6 @@ use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U1>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
-pub type Users = Arc<RwLock<Vec<User>>>;
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
     pub type_card: TypeCard,
@@ -82,8 +83,6 @@ pub struct RoomMessage {
     pub msg_type: RoomMessageType,
 }
 
-pub type UserId = Uuid;
-
 #[derive(Serialize)]
 pub struct Room {
     pub id: Uuid,
@@ -102,37 +101,6 @@ pub enum RoomState {
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
     Started([User; PLAYER_NUMBER], Game),
     Done([User; PLAYER_NUMBER], Game),
-}
-
-#[derive(Copy, Clone, Debug, Serialize)]
-pub struct User {
-    id: UserId,
-    name: ArrayString<typenum::U12>,
-    bot: bool,
-}
-
-impl Default for User {
-    fn default() -> Self {
-        let mut rng = rand::thread_rng();
-        let id = Uuid::new_v4();
-        User {
-            id,
-            name: ArrayString::from_chars(format!("Bot{}", rng.next_u32()).chars()),
-            bot: true,
-        }
-    }
-}
-
-impl User {
-    pub fn human(self, is_human: bool) -> Self {
-        Self {
-            bot: !is_human,
-            ..self
-        }
-    }
-    pub fn with_id(self, id: UserId) -> Self {
-        Self { id, ..self }
-    }
 }
 
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
@@ -295,14 +263,29 @@ pub async fn room_task(
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
                 if let &mut RoomState::WaitingForPlayers(mut players) = &mut room_guard.state {
-                    if let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) {
-                        *player_slot = Some(from_user_id);
+                    if players.iter().any(|p| p == &Some(from_user_id))
+                        || room_guard.viewers.iter().any(|p| p == &from_user_id)
+                        || players.iter().all(|p| p.is_some())
+                    // should never happen
+                    {
                         sender.send(RoomMessage {
                             from_user_id: None,
-                            to_user_id: None,
-                            msg_type: RoomMessageType::Joined(from_user_id),
+                            to_user_id: Some(from_user_id),
+                            msg_type: RoomMessageType::PlayerError(GameError::StateError),
                         })?;
-                    } else {
+                        continue;
+                    }
+
+                    let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) else {unreachable!()};
+
+                    *player_slot = Some(from_user_id);
+                    sender.send(RoomMessage {
+                        from_user_id: None,
+                        to_user_id: None,
+                        msg_type: RoomMessageType::Joined(from_user_id),
+                    })?;
+
+                    if players.iter().all(|p| p.is_some()) {
                         let users_guard = users.read().await;
                         let users: [User; PLAYER_NUMBER] = players.map(|player| {
                             let Some(player) = player else {unreachable!()};
@@ -335,6 +318,8 @@ pub async fn room_task(
                                 hands: game.hands,
                             },
                         })?;
+                    } else {
+                        room_guard.state = RoomState::WaitingForPlayers(players);
                     }
                 } else {
                     room_guard.viewers.insert(from_user_id);

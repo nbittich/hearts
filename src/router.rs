@@ -1,7 +1,8 @@
 use crate::{
     constants::{COOKIE as COOKIE_NAME, USER_ID},
-    room::{Room, Rooms, User, Users},
+    room::{Room, Rooms},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
+    user::{User, Users},
     utils::service_error,
     websocket::ws_handler,
 };
@@ -16,18 +17,24 @@ use axum::{
 };
 use axum_extra::extract::CookieJar;
 use minijinja::context;
-use std::error::Error;
+use std::{borrow::Cow, error::Error};
 use tower::ServiceBuilder;
-use tower_http::services::ServeDir;
+use tower_http::{
+    services::ServeDir,
+    trace::{DefaultMakeSpan, TraceLayer},
+};
 use tracing::Level;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use uuid::Uuid;
+
+pub type WsEndpoint = Cow<'static, str>;
 
 #[derive(Clone)]
 pub struct AppState {
     pub rooms: Rooms,
     pub users: Users,
     pub store: MemoryStore,
+    pub ws_endpoint: WsEndpoint,
 }
 impl FromRef<AppState> for Rooms {
     fn from_ref(app_state: &AppState) -> Rooms {
@@ -39,22 +46,33 @@ impl FromRef<AppState> for Users {
         app_state.users.clone()
     }
 }
+impl FromRef<AppState> for WsEndpoint {
+    fn from_ref(app_state: &AppState) -> WsEndpoint {
+        app_state.ws_endpoint.clone()
+    }
+}
 impl FromRef<AppState> for MemoryStore {
     fn from_ref(app_state: &AppState) -> MemoryStore {
         app_state.store.clone()
     }
 }
-pub fn get_router(rooms: Rooms, users: Users, store: MemoryStore) -> Router {
+pub fn get_router(
+    ws_endpoint: Cow<'static, str>,
+    rooms: Rooms,
+    users: Users,
+    store: MemoryStore,
+) -> Router {
     let serve_dir = ServeDir::new("assets");
     let state = AppState {
         rooms,
         users,
         store,
+        ws_endpoint,
     };
     Router::new()
         .route("/create-room", post(create_room))
         .route("/room/:id", get(get_room))
-        .route("/room-connect/:id", get(ws_handler))
+        .route("/ws/:id", get(ws_handler))
         .route("/", get(index_page))
         .nest_service("/assets", serve_dir)
         .route(
@@ -66,6 +84,10 @@ pub fn get_router(rooms: Rooms, users: Users, store: MemoryStore) -> Router {
                 state.clone(),
                 build_guest_session_if_none,
             )),
+        )
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::default().include_headers(true)),
         )
         .with_state(state)
 }
@@ -109,7 +131,9 @@ async fn create_room(
 
 async fn get_room(
     Path(id): Path<Uuid>,
+    State(ws_endpoint): State<WsEndpoint>,
     State(rooms): State<Rooms>,
+    user: User,
 ) -> axum::response::Result<impl IntoResponse> {
     tracing::debug!("get room id {id}");
     let rooms_guard = rooms.read().await;
@@ -119,7 +143,9 @@ async fn get_room(
             let templ = get_template(
                 ROOM_PAGE,
                 context!(
-                    room => *room
+                    room => *room,
+                    ws_endpoint => ws_endpoint,
+                    user => user,
                 ),
             )
             .map_err(service_error)?;
