@@ -14,36 +14,11 @@ ws.onmessage = function(evt) {
     console.log("roomMessage is a string type ", roomMessage.msgType);
   } else {
     if (roomMessage.msgType.waitingForPlayers) {
-      // update screen with waiting for players
+      renderWaitingForPlayers(roomMessage.msgType.waitingForPlayers);
+    }
+    else if (roomMessage.msgType.joined) {
+      renderPlayerJoined(roomMessage.msgType.joined);
 
-      let divWaitingForPlayers = appDiv.querySelector("#waitingForPlayers");
-
-      if (divWaitingForPlayers) {
-        divWaitingForPlayers.innerHTML = "";
-      } else {
-        divWaitingForPlayers = document.createElement("div");
-        divWaitingForPlayers.id = "waitingForPlayers";
-        appDiv.appendChild(divWaitingForPlayers);
-      }
-
-      let playerAlreadyJoined = roomMessage.msgType.waitingForPlayers.includes(currentUserId);
-
-      for (const player of roomMessage.msgType.waitingForPlayers) {
-        if (player) {
-          let p = document.createElement("p");
-          p.textContent = `${currentUserId === player ? "You" : "Player " + player} joined`;
-          divWaitingForPlayers.appendChild(p);
-        } else {
-          let a = document.createElement("a");
-          a.href = "#join";
-          a.textContent = "Join";
-          a.className = "d-block";
-          if (!playerAlreadyJoined) {
-            a.onclick = sendJoin;
-          }
-          divWaitingForPlayers.appendChild(a);
-        }
-      }
     }
 
   }
@@ -68,4 +43,61 @@ function sendStringMessageType(msgType) {
   ws.send(JSON.stringify({
     msgType: msgType
   }));
+}
+
+
+// html render
+
+const renderPlayer = (playersDiv, player) => {
+  let p = document.createElement("p");
+  p.textContent = `${currentUserId === player ? "You" : "Player " + player} joined`;
+  p.dataset.userId = player;
+  playersDiv.appendChild(p);
+};
+function renderWaitingForPlayers(players) {
+  // update screen with waiting for players
+
+  let playersDiv = appDiv.querySelector("#players");
+
+  if (playersDiv) {
+    playersDiv.innerHTML = "";
+  } else {
+    playersDiv = document.createElement("div");
+    playersDiv.id = "players";
+    appDiv.appendChild(playersDiv);
+  }
+
+  let playerAlreadyJoined = players.includes(currentUserId);
+
+  for (const player of players) {
+    if (player)
+      renderPlayer(playersDiv, player);
+    else {
+      let a = document.createElement("a");
+      a.href = "#join";
+      a.textContent = "Join";
+      a.className = "d-block";
+      if (!playerAlreadyJoined) {
+        a.onclick = sendJoin;
+      }
+      playersDiv.appendChild(a);
+    }
+  }
+
+}
+function renderPlayerJoined(player) {
+  let playersDiv = appDiv.querySelector("#players");
+  if (!playersDiv) {
+    sendGetCurrentState();
+  } else {
+    const slot = [...playersDiv.children].find((child) => {
+      return child.dataset.userId == null;
+    });
+    if (slot) {
+      console.log("slot found", slot);
+      playersDiv.removeChild(slot);
+      renderPlayer(playersDiv, player);
+    }
+  }
+
 }

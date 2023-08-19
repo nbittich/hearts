@@ -1,16 +1,32 @@
 use std::fmt::Display;
 
 use axum::{
-    http::StatusCode,
+    http::{header::SET_COOKIE, StatusCode},
     response::{IntoResponse, Redirect, Response},
 };
+use chrono::Local;
+use constants::COOKIE as COOKIE_NAME;
 
+use crate::constants;
 #[derive(Debug)]
 pub struct HomePageRedirect;
 
 impl IntoResponse for HomePageRedirect {
     fn into_response(self) -> Response {
-        Redirect::temporary("/").into_response()
+        tracing::debug!("in case of an error, remove cookie");
+        let mut resp = Redirect::temporary("/").into_response();
+        let now = Local::now().to_rfc2822();
+        let cookie = format!("{}=; SameSite=Lax; Path=/; expires={}", COOKIE_NAME, now);
+        match cookie.parse() {
+            Ok(cookie) => {
+                resp.headers_mut().insert(SET_COOKIE, cookie);
+                resp
+            }
+            Err(e) => {
+                tracing::error!("could not parse cookie. {e}");
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
+        }
     }
 }
 pub fn service_error(e: impl Display) -> impl IntoResponse {
