@@ -1,21 +1,20 @@
-use std::{cell::OnceCell, error::Error};
+use std::{error::Error, sync::OnceLock};
 
 use minijinja::Environment;
 use serde::Serialize;
 
-const ENGINE: OnceCell<Environment> = OnceCell::new();
+static ENGINE: OnceLock<Environment<'static>> = OnceLock::new();
 
-pub const INDEX_PAGE: &str = "index.html";
-pub const ROOM_PAGE: &str = "room.html";
-pub const BASE_LAYOUT: &str = "base.html";
+pub static INDEX_PAGE: &str = "index.html";
+pub static ROOM_PAGE: &str = "room.html";
+pub static BASE_LAYOUT: &str = "base.html";
 
 pub fn get_template<S: Serialize>(tpl: &str, ctx: S) -> Result<String, Box<dyn Error>> {
-    let engine = ENGINE;
     let engine = {
-        if engine.get().is_none() {
-            engine.set(init_engine()?).unwrap_or_default();
+        if ENGINE.get().is_none() {
+            ENGINE.set(init_engine()?).unwrap_or_default();
         }
-        engine.get().ok_or("could not extract engine from cell")
+        ENGINE.get().ok_or("could not extract engine from cell")
     }?;
     let template = engine.get_template(tpl)?;
     let res = template.render(ctx)?;

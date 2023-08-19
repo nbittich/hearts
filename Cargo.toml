@@ -6,14 +6,31 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-axum = { version = "0.6.18", features = ["ws"] }
-lib-hearts = "0.1.0"
-minijinja = "1.0.3"
+arraystring = { version = "0.3.0", features = ["serde-traits"] }
+async-session = "3.0.0"
+axum = { version = "0.6.20", features = ["ws", "headers"] }
+axum-extra = { version = "0.7.7", features = ["cookie"] }
+chrono = "0.4.26"
+futures = "0.3.28"
+futures-util = { version = "0.3.28", features = ["sink", "std"] }
+lib-hearts = "0.1.21"
+minijinja = "1.0.5"
 rand = "0.8.5"
-serde = { version = "1.0.167", features = ["derive"] }
-serde_json = "1.0.100"
+serde = { version = "1.0.181", features = ["derive", "rc"] }
+serde_json = "1.0.104"
 tokio = { version = "1.29.1", features = ["full"] }
-tower-http = { version = "0.4.1", features = ["fs", "trace", "redirect"] }
+tower = "0.4.13"
+tower-http = { version = "0.4.3", features = ["fs", "trace", "redirect"] }
 tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-uuid = { version = "1.4.0", features = ["v4"] }
+tracing-subscriber = { version = "0.3.17", features = [
+  "env-filter",
+  "time",
+  "local-time",
+] }
+typenum = "1.16.0"
+uuid = { version = "1.4.1", features = ["v4", "serde"] }
+time = { version = "0.3.25", features = [
+  "formatting",
+  "local-offset",
+  "macros",
+] }

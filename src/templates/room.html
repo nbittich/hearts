@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}{{ super() }}{% endblock %}
-{% block body %}
-<p>Room #{{room.id}}</p>
 
+
+{% block body %}
+<p>Room {{room.id}}</p>
+<div id="app" data-ws-endpoint="{{ws_endpoint}}" data-room-id="{{room.id}}" data-user-id="{{user.id}}">
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script src="/assets/js/app.js"> </script>
 {% endblock %}
