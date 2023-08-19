@@ -50,6 +50,12 @@ impl User {
     pub fn with_id(self, id: UserId) -> Self {
         Self { id, ..self }
     }
+    pub fn name(self, name: String) -> Self {
+        Self {
+            name: ArrayString::from_chars(name.chars()),
+            ..self
+        }
+    }
 }
 
 #[async_trait]

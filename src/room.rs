@@ -3,6 +3,7 @@ use std::{
     error::Error,
     fmt::{Debug, Display},
     sync::Arc,
+    time::Duration,
 };
 
 use crate::{
@@ -37,6 +38,7 @@ pub struct PlayerCard {
 #[serde(rename_all = "camelCase")]
 pub enum RoomMessageType {
     Join,
+    JoinBot,
     Joined(UserId),
     ViewerJoined(UserId),
     GetCards,
@@ -193,7 +195,7 @@ async fn send_message_after_played(
                             player_ids_in_order,
                             current_player_id,
                             hands: game.hands,
-                            current_hand: game.current_hand + 1,
+                            current_hand: game.current_hand,
                         },
                     })?;
                 }
@@ -206,6 +208,67 @@ async fn send_message_after_played(
     }
     Ok(false)
 }
+
+async fn bot_task(
+    sender: Sender<RoomMessage>,
+    bot_id: Uuid,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    tracing::info!("setup bot task {bot_id}...");
+    let mut receiver = sender.subscribe();
+
+    tracing::info!("listening bot {bot_id}...");
+    sender.send(RoomMessage {
+        from_user_id: Some(bot_id),
+        to_user_id: None,
+        msg_type: RoomMessageType::Join,
+    })?;
+    while let Ok(msg) = receiver.recv().await {
+        if msg.from_user_id.is_some() {
+            continue; // only interested by system msg
+        }
+
+        match msg.msg_type {
+            RoomMessageType::NewHand {
+                player_ids_in_order: _,
+                current_player_id,
+                current_hand: _,
+                hands: _,
+            }
+            | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
+                if current_player_id == bot_id =>
+            {
+                tokio::time::sleep(Duration::from_secs(5)).await; // give some delay
+                sender.send(RoomMessage {
+                    from_user_id: Some(bot_id),
+                    to_user_id: None,
+                    msg_type: RoomMessageType::ReplaceCardsBot,
+                })?;
+            }
+
+            RoomMessageType::NextPlayerToPlay {
+                current_player_id,
+                stack,
+            } if current_player_id == bot_id => {
+                tokio::time::sleep(Duration::from_secs(5)).await; // give some delay
+
+                sender.send(RoomMessage {
+                    from_user_id: Some(bot_id),
+                    to_user_id: None,
+                    msg_type: RoomMessageType::PlayBot,
+                })?;
+            }
+            RoomMessageType::End => {
+                tracing::info!("bot {bot_id} say goodbye.");
+                return Ok(());
+            }
+
+            _ => tracing::debug!("we don't care about {msg:?}"),
+        }
+        // todo
+    }
+    Ok(())
+}
+
 async fn send_message_after_cards_replaced(
     game: &Game,
     sender: &Sender<RoomMessage>,
@@ -255,11 +318,20 @@ pub async fn room_task(
         (sender, receiver)
     };
     let room = room.clone();
-    tracing::info!("listening task {id}...");
+    tracing::info!("listening room task {id}...");
     while let Ok(msg) = receiver.recv().await {
         let Some(from_user_id) = msg.from_user_id else {continue};
 
         match msg.msg_type {
+            RoomMessageType::JoinBot => {
+                // todo make sure the room creator is the one who send the msg
+                let room_guard = room.read().await;
+
+                if let RoomState::WaitingForPlayers(ref players) = room_guard.state {
+                    let uuid = Uuid::new_v4();
+                    tokio::task::spawn(bot_task(sender.clone(), uuid));
+                }
+            }
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
                 let is_viewer = room_guard.viewers.iter().any(|p| p == &from_user_id);
@@ -311,7 +383,7 @@ pub async fn room_task(
                             msg_type: RoomMessageType::NewHand {
                                 player_ids_in_order,
                                 current_player_id,
-                                current_hand: game.current_hand + 1,
+                                current_hand: game.current_hand,
                                 hands: game.hands,
                             },
                         })?;

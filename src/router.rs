@@ -16,15 +16,17 @@ use axum::{
     Router,
 };
 use axum_extra::extract::CookieJar;
+use chrono::Local;
 use minijinja::context;
 use std::{borrow::Cow, error::Error};
+use time::{macros::format_description, UtcOffset};
 use tower::ServiceBuilder;
 use tower_http::{
     services::ServeDir,
     trace::{DefaultMakeSpan, TraceLayer},
 };
 use tracing::Level;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use tracing_subscriber::{fmt::time::OffsetTime, EnvFilter, FmtSubscriber};
 use uuid::Uuid;
 
 pub type WsEndpoint = Cow<'static, str>;
@@ -92,7 +94,20 @@ pub fn get_router(
         .with_state(state)
 }
 pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
+    let offset_hours = {
+        let now = Local::now();
+        let offset_seconds = now.offset().local_minus_utc();
+        let hours = offset_seconds / 3600;
+        hours as i8
+    };
+    let offset = UtcOffset::from_hms(offset_hours, 0, 0)?;
+
+    let timer = OffsetTime::new(
+        offset,
+        format_description!("[day]-[month]-[year] [hour]:[minute]:[second]"),
+    );
     let subscriber = FmtSubscriber::builder()
+        .with_timer(timer)
         .with_max_level(Level::TRACE)
         .with_env_filter(EnvFilter::from_default_env())
         .finish();
@@ -178,7 +193,10 @@ pub async fn build_guest_session_if_none<B>(
         response
             .headers_mut()
             .insert(SET_COOKIE, cookie.parse().map_err(service_error)?);
-        let user = User::default().with_id(id).human(true);
+        let user = User::default()
+            .with_id(id)
+            .human(true)
+            .name(format!("Guest{id}"));
         let mut users_guard = users.write().await;
         users_guard.push(user);
     }

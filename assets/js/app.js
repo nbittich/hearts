@@ -18,7 +18,6 @@ ws.onmessage = function(evt) {
     }
     else if (roomMessage.msgType.joined) {
       renderPlayerJoined(roomMessage.msgType.joined);
-
     }
 
   }
@@ -30,14 +29,15 @@ ws.onclose = function() {
 };
 
 
-
-
 // helper send msg
 function sendGetCurrentState() {
   sendStringMessageType("getCurrentState");
 }
 function sendJoin() {
   sendStringMessageType("join");
+}
+function sendJoinBot() {
+  sendStringMessageType("joinBot");
 }
 function sendStringMessageType(msgType) {
   ws.send(JSON.stringify({
@@ -73,14 +73,24 @@ function renderWaitingForPlayers(players) {
     if (player)
       renderPlayer(playersDiv, player);
     else {
-      let a = document.createElement("a");
-      a.href = "#join";
-      a.textContent = "Join";
-      a.className = "d-block";
+      let divJoinBlock = document.createElement("div");
+      divJoinBlock.className = "d-block";
       if (!playerAlreadyJoined) {
-        a.onclick = sendJoin;
+        let aJoin = document.createElement("a");
+        aJoin.href = "#join";
+        aJoin.textContent = "Join";
+        aJoin.onclick = sendJoin;
+        divJoinBlock.appendChild(aJoin);
+
       }
-      playersDiv.appendChild(a);
+
+      let aJoinBot = document.createElement("a");
+      aJoinBot.href = "#joinBot";
+      aJoinBot.textContent = "Bot";
+      aJoinBot.className = playerAlreadyJoined ? "" : "ms-1";
+      aJoinBot.onclick = sendJoinBot;
+      divJoinBlock.appendChild(aJoinBot);
+      playersDiv.appendChild(divJoinBlock);
     }
   }
 
@@ -94,7 +104,6 @@ function renderPlayerJoined(player) {
       return child.dataset.userId == null;
     });
     if (slot) {
-      console.log("slot found", slot);
       playersDiv.removeChild(slot);
       renderPlayer(playersDiv, player);
     }
