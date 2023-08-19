@@ -3,8 +3,10 @@ const wsEndpoint = appDiv.dataset.wsEndpoint;
 const roomId = appDiv.dataset.roomId;
 const currentUserId = appDiv.dataset.userId;
 const ws = new WebSocket(`${wsEndpoint}/${roomId}`);
+let isCurrentPlayer = false;
 
 ws.onopen = sendGetCurrentState;
+
 
 ws.onmessage = function(evt) {
   const roomMessage = JSON.parse(evt.data);
@@ -14,10 +16,16 @@ ws.onmessage = function(evt) {
     console.log("roomMessage is a string type ", roomMessage.msgType);
   } else {
     if (roomMessage.msgType.waitingForPlayers) {
-      renderWaitingForPlayers(roomMessage.msgType.waitingForPlayers);
+      renderPlayers(roomMessage.msgType.waitingForPlayers);
     }
     else if (roomMessage.msgType.joined) {
       renderPlayerJoined(roomMessage.msgType.joined);
+    }
+    else if (roomMessage.msgType.newHand) {
+      renderNewHand(roomMessage.msgType.newHand);
+    }
+    else if (roomMessage.msgType.receiveCards) {
+      renderReceiveCards(roomMessage.msgType.receiveCards);
     }
 
   }
@@ -33,6 +41,11 @@ ws.onclose = function() {
 function sendGetCurrentState() {
   sendStringMessageType("getCurrentState");
 }
+
+function sendGetCards() {
+  sendStringMessageType("getCards");
+}
+
 function sendJoin() {
   sendStringMessageType("join");
 }
@@ -50,11 +63,11 @@ function sendStringMessageType(msgType) {
 
 const renderPlayer = (playersDiv, player) => {
   let p = document.createElement("p");
-  p.textContent = `${currentUserId === player ? "You" : "Player " + player} joined`;
+  p.textContent = `${currentUserId === player ? "You" : "Player " + player}`;
   p.dataset.userId = player;
   playersDiv.appendChild(p);
 };
-function renderWaitingForPlayers(players) {
+function renderPlayers(players) {
   // update screen with waiting for players
 
   let playersDiv = appDiv.querySelector("#players");
@@ -74,6 +87,7 @@ function renderWaitingForPlayers(players) {
       renderPlayer(playersDiv, player);
     else {
       let divJoinBlock = document.createElement("div");
+      divJoinBlock.id = "join"
       divJoinBlock.className = "d-block";
       if (!playerAlreadyJoined) {
         let aJoin = document.createElement("a");
@@ -109,4 +123,43 @@ function renderPlayerJoined(player) {
     }
   }
 
+}
+
+function renderNewHand(newHand) {
+  renderPlayers(newHand.player_ids_in_order); // todo we probably want to have the score
+  sendGetCards();
+  isCurrentPlayer = currentUserId === newHand.current_player_id;
+
+}
+function renderReceiveCards(receivedCards) {
+  let divCardsBlock = appDiv.querySelector("#myCards");
+
+  if (divCardsBlock) {
+    divCardsBlock.innerHTML = "";
+  } else {
+    divCardsBlock = document.createElement("div");
+    divCardsBlock.id = "myCards";
+    appDiv.appendChild(divCardsBlock);
+  }
+
+  for (const card of receivedCards) {
+    let aCard = document.createElement("a");
+    aCard.href = "#playCard"; // todo either exchange cards or play
+    aCard.textContent = card.emoji;
+    aCard.onclick = sendJoin; // todo
+    aCard.dataset.selected = false;
+    switch (card.type_card) {
+      case "CLUB":
+      case "SPADE":
+        aCard.classList = "me-1 dark";
+        break;
+      case "DIAMOND":
+      case "HEART":
+        aCard.classList = "me-1 red";
+        break;
+    }
+    divCardsBlock.appendChild(aCard);
+
+
+  }
 }

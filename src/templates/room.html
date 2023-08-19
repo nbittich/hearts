@@ -4,6 +4,7 @@
 
 {% block body %}
 <p>Room {{room.id}}</p>
+<hr>
 <div id="app" data-ws-endpoint="{{ws_endpoint}}" data-room-id="{{room.id}}" data-user-id="{{user.id}}">
 </div>
 {% endblock %}

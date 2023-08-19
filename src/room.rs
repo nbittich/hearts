@@ -24,7 +24,7 @@ use tokio::{
     task::JoinHandle,
 };
 use uuid::Uuid;
-pub type CardEmoji = ArrayString<typenum::U1>;
+pub type CardEmoji = ArrayString<typenum::U16>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
@@ -107,7 +107,7 @@ pub enum RoomState {
 
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
     if let Some((position_in_deck, card)) = card {
-        let emoji: ArrayString<typenum::U1> = ArrayString::from_utf8(card.get_emoji()).unwrap();
+        let emoji: ArrayString<typenum::U16> = ArrayString::from_utf8(card.get_emoji()).unwrap();
         Some(PlayerCard {
             emoji,
             position_in_deck,
@@ -335,66 +335,77 @@ pub async fn room_task(
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
                 let is_viewer = room_guard.viewers.iter().any(|p| p == &from_user_id);
-                if let RoomState::WaitingForPlayers(ref mut players) = room_guard.state {
-                    if players.iter().any(|p| p == &Some(from_user_id)) || is_viewer {
-                        sender.send(RoomMessage {
-                            from_user_id: None,
-                            to_user_id: Some(from_user_id),
-                            msg_type: RoomMessageType::PlayerError(GameError::StateError),
-                        })?;
-                        continue;
-                    }
+                match room_guard.state {
+                    RoomState::WaitingForPlayers(ref mut players) => {
+                        if players.iter().any(|p| p == &Some(from_user_id)) || is_viewer {
+                            sender.send(RoomMessage {
+                                from_user_id: None,
+                                to_user_id: Some(from_user_id),
+                                msg_type: RoomMessageType::PlayerError(GameError::StateError),
+                            })?;
+                            continue;
+                        }
 
-                    let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) else {unreachable!()};
+                        let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) else {unreachable!()};
 
-                    *player_slot = Some(from_user_id);
-                    sender.send(RoomMessage {
-                        from_user_id: None,
-                        to_user_id: None,
-                        msg_type: RoomMessageType::Joined(from_user_id),
-                    })?;
-
-                    if players.iter().all(|p| p.is_some()) {
-                        let users_guard = users.read().await;
-                        let users: [User; PLAYER_NUMBER] = players.map(|player| {
-                            let Some(player) = player else {unreachable!()};
-                            users_guard
-                                .iter()
-                                .find(|p| p.id == player)
-                                .cloned()
-                                .unwrap_or_else(|| User::default().human(false).with_id(player))
-                        });
-
-                        let players: [(UserId, bool); PLAYER_NUMBER] =
-                            users.map(|user| (user.id, user.bot));
-
-                        let game = Game::new(players, DEFAULT_HANDS);
-                        let current_player_id =
-                            game.current_player_id().ok_or("should not happen")?;
-
-                        let player_ids_in_order = game.player_ids_in_order();
-                        room_guard.state = RoomState::Started(users, game);
-
-                        // notify game is about to start
-
+                        *player_slot = Some(from_user_id);
                         sender.send(RoomMessage {
                             from_user_id: None,
                             to_user_id: None,
-                            msg_type: RoomMessageType::NewHand {
-                                player_ids_in_order,
-                                current_player_id,
-                                current_hand: game.current_hand,
-                                hands: game.hands,
-                            },
+                            msg_type: RoomMessageType::Joined(from_user_id),
                         })?;
+
+                        if players.iter().all(|p| p.is_some()) {
+                            let users_guard = users.read().await;
+                            let users: [User; PLAYER_NUMBER] = players.map(|player| {
+                                let Some(player) = player else {unreachable!()};
+                                users_guard
+                                    .iter()
+                                    .find(|p| p.id == player)
+                                    .cloned()
+                                    .unwrap_or_else(|| User::default().human(false).with_id(player))
+                            });
+
+                            let players: [(UserId, bool); PLAYER_NUMBER] =
+                                users.map(|user| (user.id, user.bot));
+
+                            let game = Game::new(players, DEFAULT_HANDS);
+                            let current_player_id =
+                                game.current_player_id().ok_or("should not happen")?;
+
+                            let player_ids_in_order = game.player_ids_in_order();
+                            room_guard.state = RoomState::Started(users, game);
+
+                            // notify game is about to start
+
+                            sender.send(RoomMessage {
+                                from_user_id: None,
+                                to_user_id: None,
+                                msg_type: RoomMessageType::NewHand {
+                                    player_ids_in_order,
+                                    current_player_id,
+                                    current_hand: game.current_hand,
+                                    hands: game.hands,
+                                },
+                            })?;
+                        }
                     }
-                } else {
-                    room_guard.viewers.insert(from_user_id);
-                    sender.send(RoomMessage {
-                        from_user_id: None,
-                        to_user_id: None,
-                        msg_type: RoomMessageType::ViewerJoined(from_user_id),
-                    })?;
+                    RoomState::Started(ref users, _) | RoomState::Done(ref users, _) => {
+                        if users.iter().any(|u| &u.id == &from_user_id) {
+                            sender.send(RoomMessage {
+                                from_user_id: None,
+                                to_user_id: Some(from_user_id),
+                                msg_type: RoomMessageType::PlayerError(GameError::StateError),
+                            })?;
+                        } else {
+                            room_guard.viewers.insert(from_user_id);
+                            sender.send(RoomMessage {
+                                from_user_id: None,
+                                to_user_id: None,
+                                msg_type: RoomMessageType::ViewerJoined(from_user_id),
+                            })?;
+                        }
+                    }
                 }
             }
             RoomMessageType::GetCards => {
