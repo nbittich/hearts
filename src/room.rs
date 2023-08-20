@@ -24,7 +24,7 @@ use tokio::{
     task::JoinHandle,
 };
 use uuid::Uuid;
-pub type CardEmoji = ArrayString<typenum::U16>;
+pub type CardEmoji = ArrayString<typenum::U4>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
@@ -68,6 +68,7 @@ pub enum RoomMessageType {
         current_cards: [Option<PlayerCard>; PLAYER_CARD_SIZE],
         current_stack: [Option<PlayerCard>; PLAYER_NUMBER],
         current_hand: u8,
+        current_player_id: Option<UserId>,
         hands: u8,
     },
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
@@ -107,7 +108,7 @@ pub enum RoomState {
 
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
     if let Some((position_in_deck, card)) = card {
-        let emoji: ArrayString<typenum::U16> = ArrayString::from_utf8(card.get_emoji()).unwrap();
+        let emoji: ArrayString<typenum::U4> = ArrayString::from_utf8(card.get_emoji()).unwrap();
         Some(PlayerCard {
             emoji,
             position_in_deck,
@@ -562,6 +563,7 @@ pub async fn room_task(
                                 current_cards: cards,
                                 current_stack: stack,
                                 current_hand: game.current_hand,
+                                current_player_id: game.current_player_id(),
                                 hands: game.hands,
                             },
                         })?;

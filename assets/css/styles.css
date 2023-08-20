@@ -2,7 +2,16 @@
   display:block;
 }
 .ms-1 {
-  margin-left: 20px;
+  margin-left: 5px;
+}
+.me-1 {
+  margin-right: 5px;
+}
+.underline {
+  text-decoration: underline;
+}
+.card-selected {
+  text-shadow: -.5px 0 black, 0 .5px black, .5px 0 black, 0 -.5px black;
 }
 
 .dark {
@@ -10,4 +19,7 @@
 }
 .red {
   color: red;
+}
+.card {
+  font-size: 30px;
 }

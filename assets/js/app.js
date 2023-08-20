@@ -3,7 +3,19 @@ const wsEndpoint = appDiv.dataset.wsEndpoint;
 const roomId = appDiv.dataset.roomId;
 const currentUserId = appDiv.dataset.userId;
 const ws = new WebSocket(`${wsEndpoint}/${roomId}`);
+
+const EXCHANGE_CARDS = 0;
+const PLAYING_HAND = 1;
+
 let isCurrentPlayer = false;
+
+let mode = EXCHANGE_CARDS;
+
+let cardsToExchange = [];
+
+let cardToPlay = null;
+
+
 
 ws.onopen = sendGetCurrentState;
 
@@ -25,7 +37,28 @@ ws.onmessage = function(evt) {
       renderNewHand(roomMessage.msgType.newHand);
     }
     else if (roomMessage.msgType.receiveCards) {
-      renderReceiveCards(roomMessage.msgType.receiveCards);
+      renderCards(roomMessage.msgType.receiveCards);
+    }
+    else if (roomMessage.msgType.nextPlayerToReplaceCards) {
+      renderNextPlayer(roomMessage.msgType.nextPlayerToReplaceCards);
+    }
+    else if (roomMessage.msgType.nextPlayerToPlay) {
+      renderNextPlayer(roomMessage.msgType.nextPlayerToPlay);
+      sendGetCurrentState();
+    }
+    else if (roomMessage.msgType.state) {
+      let state = roomMessage.msgType.state;
+      let playersDiv = appDiv.querySelector("#players");
+
+      if (!playersDiv) {
+        renderPlayers(state.player_scores.map(ps => ps.player_id));
+        renderNextPlayer(state);
+      }
+      if (state.current_hand != state.hands) { // todo could be off by one
+        renderCards(state.current_cards);
+
+      }
+      renderPlayersScore(state.player_scores);
     }
 
   }
@@ -42,6 +75,13 @@ function sendGetCurrentState() {
   sendStringMessageType("getCurrentState");
 }
 
+function sendReplaceCards(cards) {
+  let obj = {
+    replaceCards: cards
+  };
+  sendStringMessageType(obj);
+}
+
 function sendGetCards() {
   sendStringMessageType("getCards");
 }
@@ -52,6 +92,7 @@ function sendJoin() {
 function sendJoinBot() {
   sendStringMessageType("joinBot");
 }
+
 function sendStringMessageType(msgType) {
   ws.send(JSON.stringify({
     msgType: msgType
@@ -127,11 +168,38 @@ function renderPlayerJoined(player) {
 
 function renderNewHand(newHand) {
   renderPlayers(newHand.player_ids_in_order); // todo we probably want to have the score
+  renderNextPlayer(newHand);
   sendGetCards();
   isCurrentPlayer = currentUserId === newHand.current_player_id;
-
+  mode = EXCHANGE_CARDS;
+  cardsToExchange = [];
+  cardToPlay = null;
 }
-function renderReceiveCards(receivedCards) {
+
+function renderCard(divCardsBlock, card) {
+  if (!card) {
+    return;
+  }
+  let aCard = document.createElement("a");
+  aCard.href = "#playCard"; // todo either exchange cards or play
+  aCard.textContent = card.emoji;
+  aCard.onclick = handleCardPlayed;
+
+  aCard.dataset.selected = false;
+  aCard.dataset.card = JSON.stringify(card);
+  switch (card.type_card) {
+    case "CLUB":
+    case "SPADE":
+      aCard.classList = "me-1 dark card";
+      break;
+    case "DIAMOND":
+    case "HEART":
+      aCard.classList = "me-1 red card";
+      break;
+  }
+  divCardsBlock.appendChild(aCard);
+}
+function renderCards(cards) {
   let divCardsBlock = appDiv.querySelector("#myCards");
 
   if (divCardsBlock) {
@@ -142,24 +210,104 @@ function renderReceiveCards(receivedCards) {
     appDiv.appendChild(divCardsBlock);
   }
 
-  for (const card of receivedCards) {
-    let aCard = document.createElement("a");
-    aCard.href = "#playCard"; // todo either exchange cards or play
-    aCard.textContent = card.emoji;
-    aCard.onclick = sendJoin; // todo
-    aCard.dataset.selected = false;
-    switch (card.type_card) {
-      case "CLUB":
-      case "SPADE":
-        aCard.classList = "me-1 dark";
+  for (const card of cards) {
+    renderCard(divCardsBlock, card);
+  }
+}
+
+
+function renderNextPlayer({ current_player_id }) {
+  isCurrentPlayer = current_player_id == currentUserId;
+  let playersDiv = appDiv.querySelector("#players");
+  let nextPlayerElt = [...playersDiv.childNodes]
+    .map(elt => {
+      elt.classList.remove('underline');
+      return elt;
+    })
+    .find(p => p.dataset.userId === current_player_id);
+
+  nextPlayerElt.classList = nextPlayerElt.classList + " underline";
+
+}
+function renderCardSubmitButton(renderCondition = false, onClick = (_) => { }) {
+  let divCardsBlock = appDiv.querySelector("#myCards");
+
+  let button = divCardsBlock.querySelector("#submitExchangeCards");
+
+  if (button) {
+    if (!renderCondition) {
+      divCardsBlock.removeChild(button);
+      return;
+    } else {
+      button.innerHTML = "";
+    }
+  } else {
+    button = document.createElement('button');
+  }
+
+  if (renderCondition) {
+    button.href = "#submitExchangeCards";
+    button.id = "submitExchangeCards";
+    button.onclick = onClick;
+    button.textContent = "Submit";
+    divCardsBlock.appendChild(button);
+
+  }
+}
+
+function renderPlayersScore(player_scores) {
+  let playersDiv = appDiv.querySelector("#players");
+  let playersElt = [...playersDiv.childNodes];
+  for (const playerElt of playersElt) {
+    let userId = playerElt.dataset.userId;
+    let scoreElt = playerElt.querySelector('.score');
+
+    if (scoreElt) {
+      scoreElt.innerHTML = "";
+    } else {
+      scoreElt = document.createElement("span");
+      playerElt.appendChild(scoreElt);
+    }
+    scoreElt.classList = "score";
+    let player_score = player_scores.find(ps => ps.player_id == userId);
+    scoreElt.innerText = `(${player_score.score})`;
+
+  }
+}
+
+// HANDLER
+//
+function handleCardPlayed(e) {
+  e.preventDefault();
+
+  if (isCurrentPlayer) {
+    switch (mode) {
+      case EXCHANGE_CARDS:
+        let cardElt = e.currentTarget;
+        let clickedCard = JSON.parse(cardElt.dataset.card);
+        cardsToExchange = cardsToExchange || [];
+        if (cardElt.dataset.selected === "true") {
+          cardsToExchange = cardsToExchange.filter(c => c.position_in_deck !== clickedCard.position_in_deck);
+          cardElt.classList.remove('card-selected');
+          cardElt.dataset.selected = false;
+        }
+        else if (cardsToExchange.length < 3) {
+          cardsToExchange.push(clickedCard);
+          cardElt.classList.add('card-selected');
+          cardElt.dataset.selected = true;
+        }
+        renderCardSubmitButton(cardsToExchange.length === 3, (evt) => {
+          evt.preventDefault();
+          sendReplaceCards(cardsToExchange);
+          cardsToExchange = [];
+          renderCardSubmitButton(); // remove submit button
+          mode = PLAYING_HAND;
+        });
+
         break;
-      case "DIAMOND":
-      case "HEART":
-        aCard.classList = "me-1 red";
+      case PLAYING_HAND:
         break;
     }
-    divCardsBlock.appendChild(aCard);
-
 
   }
 }
