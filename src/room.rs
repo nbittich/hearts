@@ -182,9 +182,7 @@ async fn send_message_after_played(
             ref stack,
             ref current_scores,
         } => {
-            dbg!(&game.state);
             game.compute_score()?;
-            dbg!(&game.state);
             match &game.state {
                 GameState::PlayingHand {
                     stack,
@@ -317,6 +315,54 @@ async fn send_message_after_cards_replaced(
         }
         any => {
             tracing::warn!("receiving weird event from game after exchange cards: {any:?}");
+        }
+    }
+    Ok(())
+}
+
+async fn send_current_state(
+    state: &RoomState,
+    from_user_id: Uuid,
+    sender: &Sender<RoomMessage>,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
+    match state {
+        RoomState::WaitingForPlayers(ref players_slot) => {
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: Some(from_user_id),
+                msg_type: RoomMessageType::WaitingForPlayers(*players_slot),
+            })?;
+        }
+        RoomState::Started(ref players, ref game) | RoomState::Done(ref players, ref game) => {
+            // send current state
+            let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
+                .get_player_cards(from_user_id)
+                .map(convert_card_to_player_card);
+            let stack = match &game.state {
+                GameState::PlayingHand {
+                    stack,
+                    current_scores: _,
+                }
+                | GameState::ComputeScore {
+                    stack,
+                    current_scores: _,
+                } => convert_stack_to_card_player_card(stack),
+                _ => [None; PLAYER_NUMBER],
+            };
+
+            let scores = game.player_score_by_id();
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: Some(from_user_id),
+                msg_type: RoomMessageType::State {
+                    player_scores: scores,
+                    current_cards: cards,
+                    current_stack: stack,
+                    current_hand: game.current_hand,
+                    current_player_id: game.current_player_id(),
+                    hands: game.hands,
+                },
+            })?;
         }
     }
     Ok(())
@@ -543,47 +589,7 @@ pub async fn room_task(
             }
             RoomMessageType::GetCurrentState => {
                 let room_guard = room.read().await;
-                match room_guard.state {
-                    RoomState::WaitingForPlayers(ref players_slot) => {
-                        sender.send(RoomMessage {
-                            from_user_id: None,
-                            to_user_id: Some(from_user_id),
-                            msg_type: RoomMessageType::WaitingForPlayers(*players_slot),
-                        })?;
-                    }
-                    RoomState::Started(ref players, ref game)
-                    | RoomState::Done(ref players, ref game) => {
-                        // send current state
-                        let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
-                            .get_player_cards(from_user_id)
-                            .map(convert_card_to_player_card);
-                        let stack = match &game.state {
-                            GameState::PlayingHand {
-                                stack,
-                                current_scores: _,
-                            }
-                            | GameState::ComputeScore {
-                                stack,
-                                current_scores: _,
-                            } => convert_stack_to_card_player_card(stack),
-                            _ => [None; PLAYER_NUMBER],
-                        };
-
-                        let scores = game.player_score_by_id();
-                        sender.send(RoomMessage {
-                            from_user_id: None,
-                            to_user_id: Some(from_user_id),
-                            msg_type: RoomMessageType::State {
-                                player_scores: scores,
-                                current_cards: cards,
-                                current_stack: stack,
-                                current_hand: game.current_hand,
-                                current_player_id: game.current_player_id(),
-                                hands: game.hands,
-                            },
-                        })?;
-                    }
-                }
+                send_current_state(&room_guard.state, from_user_id, &sender).await?;
             }
             e => {
                 tracing::warn!("received {e:?}. should not happen");
