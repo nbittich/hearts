@@ -58,6 +58,10 @@ pub enum RoomMessageType {
         current_player_id: UserId,
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
     },
+    UpdateScoreAndStack {
+        player_scores: [PlayerState; PLAYER_NUMBER],
+        stack: [Option<PlayerCard>; PLAYER_NUMBER],
+    },
     End,
     PlayerError(GameError),
     Play(PlayerCard),
@@ -164,6 +168,7 @@ async fn send_message_after_played(
     sender: &Sender<RoomMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let Some(ref current_player_id) = game.current_player_id() else {unreachable!()};
+    let scores = &game.player_score_by_id();
     match &mut game.state {
         GameState::PlayingHand {
             stack,
@@ -182,6 +187,15 @@ async fn send_message_after_played(
             ref stack,
             ref current_scores,
         } => {
+            sender.send(RoomMessage {
+                from_user_id: None,
+                to_user_id: None,
+                msg_type: RoomMessageType::UpdateScoreAndStack {
+                    stack: convert_stack_to_card_player_card(stack),
+                    player_scores: *scores,
+                },
+            })?;
+            tokio::time::sleep(Duration::from_secs(2)).await;
             game.compute_score()?;
             match &game.state {
                 GameState::PlayingHand {

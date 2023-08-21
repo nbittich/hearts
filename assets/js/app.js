@@ -48,6 +48,11 @@ ws.onmessage = function(evt) {
       renderStack(msg);
 
     }
+    else if (roomMessage.msgType.updateScoreAndStack) {
+      let msg = roomMessage.msgType.updateScoreAndStack;
+      renderStack(msg);
+      renderPlayersScore(msg.player_scores);
+    }
     else if (roomMessage.msgType.state) {
       let state = roomMessage.msgType.state;
       let playersDiv = appDiv.querySelector("#players");
