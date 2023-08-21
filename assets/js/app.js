@@ -48,10 +48,9 @@ ws.onmessage = function(evt) {
       renderStack(msg);
 
     }
-    else if (roomMessage.msgType.updateScoreAndStack) {
-      let msg = roomMessage.msgType.updateScoreAndStack;
+    else if (roomMessage.msgType.updateStack) {
+      let msg = roomMessage.msgType.updateStack;
       renderStack(msg);
-      renderPlayersScore(msg.player_scores);
     }
     else if (roomMessage.msgType.state) {
       let state = roomMessage.msgType.state;
