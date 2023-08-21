@@ -43,8 +43,10 @@ ws.onmessage = function(evt) {
       renderNextPlayer(roomMessage.msgType.nextPlayerToReplaceCards);
     }
     else if (roomMessage.msgType.nextPlayerToPlay) {
-      renderNextPlayer(roomMessage.msgType.nextPlayerToPlay);
-      sendGetCurrentState();
+      let msg = roomMessage.msgType.nextPlayerToPlay;
+      renderNextPlayer(msg);
+      renderStack(msg);
+
     }
     else if (roomMessage.msgType.state) {
       let state = roomMessage.msgType.state;
@@ -59,6 +61,7 @@ ws.onmessage = function(evt) {
 
       }
       renderPlayersScore(state.player_scores);
+      renderStack({ stack: state.current_stack });
     }
 
   }
@@ -78,6 +81,13 @@ function sendGetCurrentState() {
 function sendReplaceCards(cards) {
   let obj = {
     replaceCards: cards
+  };
+  sendStringMessageType(obj);
+}
+
+function sendPlayCard(card) {
+  let obj = {
+    play: card
   };
   sendStringMessageType(obj);
 }
@@ -274,6 +284,27 @@ function renderPlayersScore(player_scores) {
 
   }
 }
+function renderStack({ stack }) {
+  let stackDiv = appDiv.querySelector("#stackDiv");
+  if (stackDiv) {
+    stackDiv.innerHTML = "";
+  } else {
+    stackDiv = document.createElement("div");
+    separator = document.createElement("hr");
+    stackDiv.id = "stackDiv";
+    stackDiv.classList = "d-block";
+    appDiv.append(separator);
+    appDiv.append(stackDiv);
+  }
+  for (const card of stack) {
+    if (card) {
+      renderCard(stackDiv, card);
+    }
+  }
+
+
+
+}
 
 // HANDLER
 //
@@ -281,10 +312,10 @@ function handleCardPlayed(e) {
   e.preventDefault();
 
   if (isCurrentPlayer) {
+    let cardElt = e.currentTarget;
+    let clickedCard = JSON.parse(cardElt.dataset.card);
     switch (mode) {
       case EXCHANGE_CARDS:
-        let cardElt = e.currentTarget;
-        let clickedCard = JSON.parse(cardElt.dataset.card);
         cardsToExchange = cardsToExchange || [];
         if (cardElt.dataset.selected === "true") {
           cardsToExchange = cardsToExchange.filter(c => c.position_in_deck !== clickedCard.position_in_deck);
@@ -301,12 +332,30 @@ function handleCardPlayed(e) {
           sendReplaceCards(cardsToExchange);
           cardsToExchange = [];
           renderCardSubmitButton(); // remove submit button
+          sendGetCurrentState();
+
           mode = PLAYING_HAND;
+
         });
 
         break;
       case PLAYING_HAND:
-        break;
+        if (cardElt.dataset.selected === "true") {
+          cardToPlay = null;
+          cardElt.classList.remove('card-selected');
+          cardElt.dataset.selected = false;
+        } else {
+          cardToPlay = clickedCard;
+          cardElt.classList.add('card-selected');
+          cardElt.dataset.selected = true;
+        }
+        renderCardSubmitButton(cardToPlay, (evt) => {
+          evt.preventDefault();
+          sendPlayCard(cardToPlay);
+          cardToPlay = null;
+          renderCardSubmitButton(); // remove submit button
+          sendGetCurrentState();
+        });
     }
 
   }

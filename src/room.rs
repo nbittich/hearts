@@ -163,28 +163,43 @@ async fn send_message_after_played(
     game: &mut Game,
     sender: &Sender<RoomMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    match game.state {
+    let Some(ref current_player_id) = game.current_player_id() else {unreachable!()};
+    match &mut game.state {
         GameState::PlayingHand {
             stack,
             current_scores,
         } => {
-            let Some(current_player_id) = game.current_player_id() else {unreachable!()};
             sender.send(RoomMessage {
                 from_user_id: None,
                 to_user_id: None,
                 msg_type: RoomMessageType::NextPlayerToPlay {
-                    current_player_id,
+                    current_player_id: *current_player_id,
                     stack: convert_stack_to_card_player_card(&stack),
                 },
             })?;
         }
         GameState::ComputeScore {
-            stack,
-            current_scores,
+            ref stack,
+            ref current_scores,
         } => {
+            dbg!(&game.state);
             game.compute_score()?;
+            dbg!(&game.state);
             match &game.state {
-                GameState::EndHand => {
+                GameState::PlayingHand {
+                    stack,
+                    current_scores: _,
+                } => {
+                    sender.send(RoomMessage {
+                        from_user_id: None,
+                        to_user_id: None,
+                        msg_type: RoomMessageType::NextPlayerToPlay {
+                            current_player_id: game.current_player_id().unwrap(),
+                            stack: convert_stack_to_card_player_card(stack),
+                        },
+                    })?;
+                }
+                GameState::EndHand | GameState::ExchangeCards { commands: _ } => {
                     game.deal_cards()?;
                     let current_player_id = game.current_player_id().ok_or("should not happen")?;
 
@@ -200,12 +215,12 @@ async fn send_message_after_played(
                         },
                     })?;
                 }
-                GameState::End => return Ok(true),
-                _ => unreachable!("this cannot happen brazza"),
+                GameState::End => return Ok(true), // FIXME probably send something brazza
+                e => unreachable!("this cannot happen brazza {e:?}"),
             }
         }
 
-        _ => unreachable!("this cannot happen too brazza"),
+        any => unreachable!("this cannot happen too brazza {any:?}"),
     }
     Ok(false)
 }
@@ -238,7 +253,7 @@ async fn bot_task(
             | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
                 if current_player_id == bot_id =>
             {
-                tokio::time::sleep(Duration::from_secs(5)).await; // give some delay
+                tokio::time::sleep(Duration::from_secs(1)).await; // give some delay
                 sender.send(RoomMessage {
                     from_user_id: Some(bot_id),
                     to_user_id: None,
@@ -250,7 +265,7 @@ async fn bot_task(
                 current_player_id,
                 stack,
             } if current_player_id == bot_id => {
-                tokio::time::sleep(Duration::from_secs(5)).await; // give some delay
+                tokio::time::sleep(Duration::from_secs(1)).await; // give some delay
 
                 sender.send(RoomMessage {
                     from_user_id: Some(bot_id),

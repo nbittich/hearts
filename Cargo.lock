@@ -585,6 +585,7 @@ dependencies = [
  "minijinja",
  "rand",
  "serde",
+ "serde_derive",
  "serde_json",
  "time 0.3.25",
  "tokio",
@@ -734,12 +735,13 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lib-hearts"
-version = "0.1.22"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae3724f54b38d888cd2eb3af2ded57f36662c51541830814b0edabac3c433a34"
+checksum = "19c0123fce0d1424c09d67d5a7dcbb4c8104349c9dd3923ab140aafd3fb9f2db"
 dependencies = [
  "rand",
  "serde",
+ "serde_derive",
  "uuid",
 ]
 
@@ -804,9 +806,9 @@ dependencies = [
 
 [[package]]
 name = "minijinja"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f75e6f2b03d9292f6e18aaeeda21d58c91f6943a58ea19a2e8672dcf9d91d5b"
+checksum = "e436cdb19900a08197c6b874280d24f9289d127275eadc23623276e0f5ec97e9"
 dependencies = [
  "serde",
 ]
@@ -1076,18 +1078,18 @@ checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "serde"
-version = "1.0.183"
+version = "1.0.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32ac8da02677876d532745a130fc9d8e6edfa81a269b107c5b00829b91d8eb3c"
+checksum = "be9b6f69f1dfd54c3b568ffa45c310d6973a5e5148fd40cf515acaf38cf5bc31"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.183"
+version = "1.0.185"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aafe972d60b0b9bee71a91b92fee2d4fb3c9d7e8f6b179aa99f27203d99a4816"
+checksum = "dc59dfdcbad1437773485e0367fea4b090a2e0a16d9ffc46af47764536a298ec"
 dependencies = [
  "proc-macro2",
  "quote",
