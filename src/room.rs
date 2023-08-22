@@ -58,8 +58,9 @@ pub enum RoomMessageType {
         current_player_id: UserId,
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
     },
-    UpdateStack {
+    UpdateStackAndScore {
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
+        player_scores: [PlayerState; PLAYER_NUMBER],
     },
     End,
     PlayerError(GameError),
@@ -68,6 +69,7 @@ pub enum RoomMessageType {
     GetCurrentState,
     State {
         player_scores: [PlayerState; PLAYER_NUMBER],
+        current_scores: [PlayerState; PLAYER_NUMBER],
         current_cards: [Option<PlayerCard>; PLAYER_CARD_SIZE],
         current_stack: [Option<PlayerCard>; PLAYER_NUMBER],
         current_hand: u8,
@@ -167,7 +169,7 @@ async fn send_message_after_played(
     sender: &Sender<RoomMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
     let Some(ref current_player_id) = game.current_player_id() else {unreachable!()};
-
+    let scores = game.current_score_by_id();
     match &mut game.state {
         GameState::PlayingHand {
             stack,
@@ -189,8 +191,9 @@ async fn send_message_after_played(
             sender.send(RoomMessage {
                 from_user_id: None,
                 to_user_id: None,
-                msg_type: RoomMessageType::UpdateStack {
+                msg_type: RoomMessageType::UpdateStackAndScore {
                     stack: convert_stack_to_card_player_card(stack),
+                    player_scores: scores,
                 },
             })?;
             tokio::time::sleep(Duration::from_secs(2)).await;
@@ -200,8 +203,6 @@ async fn send_message_after_played(
                     stack,
                     current_scores,
                 } => {
-                    dbg!(current_scores); // FIXME SHOW INTERMEDIATE SCORE
-
                     sender.send(RoomMessage {
                         from_user_id: None,
                         to_user_id: None,
@@ -212,6 +213,7 @@ async fn send_message_after_played(
                     })?;
                 }
                 GameState::EndHand | GameState::ExchangeCards { commands: _ } => {
+                    dbg!("goes in");
                     game.deal_cards()?;
                     let current_player_id = game.current_player_id().ok_or("should not happen")?;
 
@@ -364,12 +366,14 @@ async fn send_current_state(
                 _ => [None; PLAYER_NUMBER],
             };
 
-            let scores = game.player_score_by_id();
+            let current_scores = game.current_score_by_id();
+            let player_scores = game.player_score_by_id();
             sender.send(RoomMessage {
                 from_user_id: None,
                 to_user_id: Some(from_user_id),
                 msg_type: RoomMessageType::State {
-                    player_scores: scores,
+                    player_scores,
+                    current_scores,
                     current_cards: cards,
                     current_stack: stack,
                     current_hand: game.current_hand,

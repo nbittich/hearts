@@ -13,7 +13,7 @@ axum-extra = { version = "0.7.7", features = ["cookie"] }
 chrono = "0.4.26"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
-lib-hearts = "0.1.26"
+lib-hearts = "0.1.27"
 minijinja = "1.0.6"
 rand = "0.8.5"
 serde = { version = "1.0.185", features = ["rc"] }

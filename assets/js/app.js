@@ -48,9 +48,10 @@ ws.onmessage = function(evt) {
       renderStack(msg);
 
     }
-    else if (roomMessage.msgType.updateStack) {
-      let msg = roomMessage.msgType.updateStack;
+    else if (roomMessage.msgType.updateStackAndScore) {
+      let msg = roomMessage.msgType.updateStackAndScore;
       renderStack(msg);
+      renderPlayersScore(msg.player_scores);
     }
     else if (roomMessage.msgType.state) {
       let state = roomMessage.msgType.state;
@@ -62,9 +63,8 @@ ws.onmessage = function(evt) {
       }
       if (state.current_hand != state.hands) { // todo could be off by one
         renderCards(state.current_cards);
-
       }
-      renderPlayersScore(state.player_scores);
+      renderPlayersScore(state.current_scores);
       renderStack({ stack: state.current_stack });
     }
 
@@ -190,14 +190,14 @@ function renderNewHand(newHand) {
   cardToPlay = null;
 }
 
-function renderCard(divCardsBlock, card) {
+function renderCard(divCardsBlock, card, onClickCallback = handleCardPlayed) {
   if (!card) {
     return;
   }
   let aCard = document.createElement("a");
   aCard.href = "#playCard"; // todo either exchange cards or play
   aCard.textContent = card.emoji;
-  aCard.onclick = handleCardPlayed;
+  aCard.onclick = onClickCallback;
 
   aCard.dataset.selected = false;
   aCard.dataset.card = JSON.stringify(card);
@@ -302,7 +302,7 @@ function renderStack({ stack }) {
   }
   for (const card of stack) {
     if (card) {
-      renderCard(stackDiv, card);
+      renderCard(stackDiv, card, (_) => { });
     }
   }
 
@@ -349,6 +349,12 @@ function handleCardPlayed(e) {
           cardElt.classList.remove('card-selected');
           cardElt.dataset.selected = false;
         } else {
+          let divCardsBlock = appDiv.querySelector("#myCards");
+          // reset maybe previous selection
+          divCardsBlock.childNodes.forEach(c => {
+            c.dataset.selected = false;
+            c.classList.remove('card-selected');
+          })
           cardToPlay = clickedCard;
           cardElt.classList.add('card-selected');
           cardElt.dataset.selected = true;
