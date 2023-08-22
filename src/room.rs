@@ -213,7 +213,6 @@ async fn send_message_after_played(
                     })?;
                 }
                 GameState::EndHand | GameState::ExchangeCards { commands: _ } => {
-                    dbg!("goes in");
                     game.deal_cards()?;
                     let current_player_id = game.current_player_id().ok_or("should not happen")?;
 
