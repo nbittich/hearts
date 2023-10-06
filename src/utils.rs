@@ -50,7 +50,7 @@ mod test {
             Some(Uuid::from_u128(4)),
         ];
         let users: [User; PLAYER_NUMBER] = players.map(|player| {
-            let Some(player) = player else {unreachable!()};
+            let Some(player) = player else { unreachable!() };
             User::default()
                 .human(player != Uuid::from_u128(0))
                 .with_id(player)

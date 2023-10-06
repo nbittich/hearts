@@ -49,6 +49,7 @@ pub enum RoomMessageType {
         player_ids_in_order: [UserId; PLAYER_NUMBER],
         current_player_id: UserId,
         current_hand: u8,
+        player_scores: [PlayerState; PLAYER_NUMBER],
         hands: u8,
     },
     NextPlayerToReplaceCards {
@@ -63,7 +64,9 @@ pub enum RoomMessageType {
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
         player_scores: [PlayerState; PLAYER_NUMBER],
     },
-    End,
+    End {
+        player_scores: [PlayerState; PLAYER_NUMBER],
+    },
     PlayerError(GameError),
     Play(PlayerCard),
     PlayBot,
@@ -222,12 +225,15 @@ async fn send_message_after_played(
                     let current_player_id = game.current_player_id().ok_or("should not happen")?;
 
                     let player_ids_in_order = game.player_ids_in_order();
+                    let player_scores = game.player_score_by_id();
+
                     sender.send(RoomMessage {
                         from_user_id: None,
                         to_user_id: None,
                         msg_type: RoomMessageType::NewHand {
                             player_ids_in_order,
                             current_player_id,
+                            player_scores,
                             hands: game.hands,
                             current_hand: game.current_hand,
                         },
@@ -267,6 +273,7 @@ async fn bot_task(
                 current_player_id,
                 current_hand: _,
                 hands: _,
+                ..
             }
             | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
                 if current_player_id == bot_id =>
@@ -292,7 +299,7 @@ async fn bot_task(
                     msg_type: RoomMessageType::PlayBot,
                 })?;
             }
-            RoomMessageType::End => {
+            RoomMessageType::End { .. } => {
                 tracing::info!("bot {bot_id} say goodbye.");
                 return Ok(());
             }
@@ -472,12 +479,13 @@ pub async fn room_task(
                             room_guard.state = RoomState::Started(users, game);
 
                             // notify game is about to start
-
+                            let player_scores = game.player_score_by_id();
                             sender.send(RoomMessage {
                                 from_user_id: None,
                                 to_user_id: None,
                                 msg_type: RoomMessageType::NewHand {
                                     player_ids_in_order,
+                                    player_scores,
                                     current_player_id,
                                     current_hand: game.current_hand,
                                     hands: game.hands,
@@ -580,13 +588,14 @@ pub async fn room_task(
                         } = &game.state
                         {
                             game.play_bot()?;
+                            let player_scores = game.player_score_by_id();
                             if send_message_after_played(game, &sender).await? {
                                 // game is done, update state
                                 room_guard.state = RoomState::Done(*players, *game);
                                 sender.send(RoomMessage {
                                     from_user_id: None,
                                     to_user_id: None,
-                                    msg_type: RoomMessageType::End,
+                                    msg_type: RoomMessageType::End { player_scores },
                                 })?;
                             }
                         }
@@ -613,11 +622,12 @@ pub async fn room_task(
                                 })?;
                             } else if send_message_after_played(game, &sender).await? {
                                 // game is done, update state
+                                let player_scores = game.player_score_by_id();
                                 room_guard.state = RoomState::Done(*players, *game);
                                 sender.send(RoomMessage {
                                     from_user_id: None,
                                     to_user_id: None,
-                                    msg_type: RoomMessageType::End,
+                                    msg_type: RoomMessageType::End { player_scores },
                                 })?;
                             }
                         }

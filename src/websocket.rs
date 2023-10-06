@@ -84,10 +84,10 @@ async fn handle_socket(
             sender: &mut SplitSink<WebSocket, Message>,
             msg: RoomMessage,
         ) -> ControlFlow<()> {
-            let Ok(msg) = serde_json::to_string(&msg) else{
-                    tracing::error!("could not serialize msg {msg:?}!!");
-                    return ControlFlow::Break(());
-                };
+            let Ok(msg) = serde_json::to_string(&msg) else {
+                tracing::error!("could not serialize msg {msg:?}!!");
+                return ControlFlow::Break(());
+            };
             if let Err(e) = sender.send(Message::Text(msg)).await {
                 tracing::error!("Could not send message back due to {e}!!!");
                 return ControlFlow::Break(());
