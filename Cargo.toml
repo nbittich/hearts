@@ -9,28 +9,28 @@ edition = "2021"
 arraystring = { version = "0.3.0", features = ["serde-traits"] }
 async-session = "3.0.0"
 axum = { version = "0.6.20", features = ["ws", "headers"] }
-axum-extra = { version = "0.7.7", features = ["cookie"] }
-chrono = "0.4.26"
+axum-extra = { version = "0.8.0", features = ["cookie"] }
+chrono = "0.4.31"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
 lib-hearts = "0.1.28"
-minijinja = "1.0.6"
+minijinja = "1.0.8"
 rand = "0.8.5"
-serde = { version = "1.0.185", features = ["rc"] }
-serde_derive = "1.0.185"
-serde_json = "1.0.105"
+serde = { version = "1.0.188", features = ["rc"] }
+serde_derive = "1.0.188"
+serde_json = "1.0.107"
 tokio = { version = "1.32.0", features = ["full"] }
 tower = "0.4.13"
-tower-http = { version = "0.4.3", features = ["fs", "trace", "redirect"] }
+tower-http = { version = "0.4.4", features = ["fs", "trace", "redirect"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = [
   "env-filter",
   "time",
   "local-time",
 ] }
-typenum = "1.16.0"
+typenum = "1.17.0"
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
-time = { version = "0.3.25", features = [
+time = { version = "0.3.29", features = [
   "formatting",
   "local-offset",
   "macros",

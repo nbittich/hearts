@@ -34,7 +34,7 @@ pub struct PlayerCard {
     pub position_in_deck: PositionInDeck,
 }
 
-#[derive(Clone, Copy, Serialize, PartialEq, Deserialize, Debug)]
+#[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum RoomMessageType {
     Join,
@@ -70,7 +70,7 @@ pub enum RoomMessageType {
     State {
         player_scores: [PlayerState; PLAYER_NUMBER],
         current_scores: [PlayerState; PLAYER_NUMBER],
-        current_cards: [Option<PlayerCard>; PLAYER_CARD_SIZE],
+        current_cards: Box<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
         current_stack: [Option<PlayerCard>; PLAYER_NUMBER],
         current_hand: u8,
         current_player_id: Option<UserId>,
@@ -79,7 +79,7 @@ pub enum RoomMessageType {
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
 }
 
-#[derive(Clone, Copy, Serialize, PartialEq, Deserialize, Debug)]
+#[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct RoomMessage {
     // if from_user_id is none, the message comes from system
@@ -168,7 +168,9 @@ async fn send_message_after_played(
     game: &mut Game,
     sender: &Sender<RoomMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    let Some(ref current_player_id) = game.current_player_id() else {unreachable!()};
+    let Some(ref current_player_id) = game.current_player_id() else {
+        unreachable!()
+    };
     let scores = game.current_score_by_id();
     match &mut game.state {
         GameState::PlayingHand {
@@ -180,7 +182,7 @@ async fn send_message_after_played(
                 to_user_id: None,
                 msg_type: RoomMessageType::NextPlayerToPlay {
                     current_player_id: *current_player_id,
-                    stack: convert_stack_to_card_player_card(&stack),
+                    stack: convert_stack_to_card_player_card(stack),
                 },
             })?;
         }
@@ -373,7 +375,7 @@ async fn send_current_state(
                 msg_type: RoomMessageType::State {
                     player_scores,
                     current_scores,
-                    current_cards: cards,
+                    current_cards: Box::new(cards),
                     current_stack: stack,
                     current_hand: game.current_hand,
                     current_player_id: game.current_player_id(),
@@ -399,7 +401,9 @@ pub async fn room_task(
     let room = room.clone();
     tracing::info!("listening room task {id}...");
     while let Ok(msg) = receiver.recv().await {
-        let Some(from_user_id) = msg.from_user_id else {continue};
+        let Some(from_user_id) = msg.from_user_id else {
+            continue;
+        };
 
         match msg.msg_type {
             RoomMessageType::JoinBot => {
@@ -425,7 +429,9 @@ pub async fn room_task(
                             continue;
                         }
 
-                        let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) else {unreachable!()};
+                        let Some(player_slot) = players.iter_mut().find(|p| p.is_none()) else {
+                            unreachable!()
+                        };
 
                         *player_slot = Some(from_user_id);
                         sender.send(RoomMessage {
@@ -437,7 +443,7 @@ pub async fn room_task(
                         if players.iter().all(|p| p.is_some()) {
                             let users_guard = users.read().await;
                             let users: [User; PLAYER_NUMBER] = players.map(|player| {
-                                let Some(player) = player else {unreachable!()};
+                                let Some(player) = player else { unreachable!() };
                                 users_guard
                                     .iter()
                                     .find(|p| p.id == player)
@@ -470,7 +476,7 @@ pub async fn room_task(
                         }
                     }
                     RoomState::Started(ref users, _) | RoomState::Done(ref users, _) => {
-                        if users.iter().any(|u| &u.id == &from_user_id) {
+                        if users.iter().any(|u| u.id == from_user_id) {
                             sender.send(RoomMessage {
                                 from_user_id: None,
                                 to_user_id: Some(from_user_id),
@@ -514,7 +520,9 @@ pub async fn room_task(
                     {
                         if let GameState::ExchangeCards { commands: _ } = &game.state {
                             game.play_bot()?;
-                            let Some(next_player_id) = game.current_player_id() else {unreachable!()};
+                            let Some(next_player_id) = game.current_player_id() else {
+                                unreachable!()
+                            };
                             send_message_after_cards_replaced(game, &sender, next_player_id)
                                 .await?;
                         }
@@ -538,7 +546,9 @@ pub async fn room_task(
                                     msg_type: RoomMessageType::PlayerError(game_error),
                                 })?;
                             } else {
-                                let Some(next_player_id) = game.current_player_id() else {unreachable!()};
+                                let Some(next_player_id) = game.current_player_id() else {
+                                    unreachable!()
+                                };
                                 send_message_after_cards_replaced(game, &sender, next_player_id)
                                     .await?;
                             }
