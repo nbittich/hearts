@@ -56,6 +56,7 @@ pub enum RoomMessageType {
     },
     NextPlayerToPlay {
         current_player_id: UserId,
+        current_cards: Option<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
     },
     UpdateStackAndScore {
@@ -113,7 +114,7 @@ pub enum RoomState {
 
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
     if let Some((position_in_deck, card)) = card {
-        let emoji: ArrayString<typenum::U4> = ArrayString::from_utf8(card.get_emoji()).unwrap();
+        let emoji: ArrayString<typenum::U4> = ArrayString::from_utf8(card.get_emoji()).ok()?;
         Some(PlayerCard {
             emoji,
             position_in_deck,
@@ -182,6 +183,7 @@ async fn send_message_after_played(
                 to_user_id: None,
                 msg_type: RoomMessageType::NextPlayerToPlay {
                     current_player_id: *current_player_id,
+                    current_cards: None,
                     stack: convert_stack_to_card_player_card(stack),
                 },
             })?;
@@ -209,7 +211,8 @@ async fn send_message_after_played(
                         from_user_id: None,
                         to_user_id: None,
                         msg_type: RoomMessageType::NextPlayerToPlay {
-                            current_player_id: game.current_player_id().unwrap(),
+                            current_player_id: game.current_player_id().ok_or("No current id")?,
+                            current_cards: None,
                             stack: convert_stack_to_card_player_card(stack),
                         },
                     })?;
@@ -279,6 +282,7 @@ async fn bot_task(
             RoomMessageType::NextPlayerToPlay {
                 current_player_id,
                 stack,
+                ..
             } if current_player_id == bot_id => {
                 tokio::time::sleep(Duration::from_secs(1)).await; // give some delay
 
@@ -321,14 +325,20 @@ async fn send_message_after_cards_replaced(
             current_scores: _,
         } => {
             // send play event
-            sender.send(RoomMessage {
-                from_user_id: None,
-                to_user_id: None,
-                msg_type: RoomMessageType::NextPlayerToPlay {
-                    current_player_id: next_player_id,
-                    stack: convert_stack_to_card_player_card(stack),
-                },
-            })?;
+            for player_id in game.player_ids_in_order() {
+                let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
+                    .get_player_cards(player_id)
+                    .map(convert_card_to_player_card);
+                sender.send(RoomMessage {
+                    from_user_id: None,
+                    to_user_id: Some(player_id),
+                    msg_type: RoomMessageType::NextPlayerToPlay {
+                        current_player_id: next_player_id,
+                        current_cards: Some(cards),
+                        stack: convert_stack_to_card_player_card(stack),
+                    },
+                })?;
+            }
         }
         any => {
             tracing::warn!("receiving weird event from game after exchange cards: {any:?}");

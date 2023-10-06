@@ -13,7 +13,8 @@ axum-extra = { version = "0.8.0", features = ["cookie"] }
 chrono = "0.4.31"
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
-lib-hearts = "0.1.28"
+#lib-hearts = "0.1.28"
+lib-hearts = { git = "ssh://git@github.com/nbittich/lib-hearts.git" }
 minijinja = "1.0.8"
 rand = "0.8.5"
 serde = { version = "1.0.188", features = ["rc"] }
