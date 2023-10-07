@@ -17,7 +17,7 @@ let cardToPlay = null;
 
 ws.onopen = sendGetCurrentState;
 
-ws.onmessage = function(evt) {
+ws.onmessage = function (evt) {
   const roomMessage = JSON.parse(evt.data);
   console.log(roomMessage);
 
@@ -63,7 +63,7 @@ ws.onmessage = function(evt) {
   }
 };
 
-ws.onclose = function() {
+ws.onclose = function () {
   // websocket is closed.
   console.log("Connection is closed...");
 };
@@ -153,6 +153,7 @@ function renderPlayers(players) {
     }
   }
 }
+
 function renderPlayerJoined(player) {
   let playersDiv = appDiv.querySelector("#players");
   if (!playersDiv) {
@@ -171,6 +172,7 @@ function renderPlayerJoined(player) {
 function renderNewHand(newHand) {
   renderPlayers(newHand.player_ids_in_order); // todo we probably want to have the score
   renderNextPlayer(newHand);
+  renderPlayersScore(newHand.player_scores);
   sendGetCards();
   isCurrentPlayer = currentUserId === newHand.current_player_id;
   mode = EXCHANGE_CARDS;
@@ -201,6 +203,7 @@ function renderCard(divCardsBlock, card, onClickCallback = handleCardPlayed) {
   }
   divCardsBlock.appendChild(aCard);
 }
+
 function renderCards(cards) {
   let divCardsBlock = appDiv.querySelector("#myCards");
 
@@ -229,7 +232,8 @@ function renderNextPlayer({ current_player_id }) {
 
   nextPlayerElt.classList = nextPlayerElt.classList + " underline";
 }
-function renderCardSubmitButton(renderCondition = false, onClick = (_) => { }) {
+
+function renderCardSubmitButton(renderCondition = false, onClick = (_) => {}) {
   let divCardsBlock = appDiv.querySelector("#myCards");
 
   let button = divCardsBlock.querySelector("#submitExchangeCards");
@@ -272,6 +276,7 @@ function renderPlayersScore(player_scores) {
     scoreElt.innerText = `(${player_score.score})`;
   }
 }
+
 function renderStack({ stack }) {
   let stackDiv = appDiv.querySelector("#stackDiv");
   if (stackDiv) {
@@ -286,7 +291,7 @@ function renderStack({ stack }) {
   }
   for (const card of stack) {
     if (card) {
-      renderCard(stackDiv, card, (_) => { });
+      renderCard(stackDiv, card, (_) => {});
     }
   }
 }
