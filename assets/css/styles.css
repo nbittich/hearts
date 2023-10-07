@@ -1,5 +1,6 @@
+@import "./simple-grid.css";
 .d-block {
-  display:block;
+  display: block;
 }
 .ms-1 {
   margin-left: 5px;
@@ -11,7 +12,11 @@
   text-decoration: underline;
 }
 .card-selected {
-  text-shadow: -.5px 0 black, 0 .5px black, .5px 0 black, 0 -.5px black;
+  text-shadow:
+    -0.5px 0 black,
+    0 0.5px black,
+    0.5px 0 black,
+    0 -0.5px black;
 }
 
 .dark {
@@ -22,4 +27,7 @@
 }
 .card {
   font-size: 30px;
+}
+.white {
+  fill: white;
 }

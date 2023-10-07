@@ -1,4 +1,7 @@
 {% extends "base.html" %}
+{% block customCss %}
+  <link href="/assets/css/room.css" rel="stylesheet">
+{% endblock %}
 {% block title %}{{ super() }}{% endblock %}
 
 
@@ -6,9 +9,52 @@
 <p>Room {{room.id}}</p>
 <hr>
 <div id="app" data-ws-endpoint="{{ws_endpoint}}" data-room-id="{{room.id}}" data-user-id="{{user.id}}">
+
+  <div class="row">
+    <div class="col-9">
+      <div id="roomTable">
+
+        <div id="playerTop" class="child "><span class="character">👤</span></div>
+        <div id="playerLeft" class="child "><span class="character">👤</span></div>
+        <div id="playerRight" class="child "><span class="character">👤</span></div>
+        <div id="playerBottom" class="child "><span class="character">👤</span></div>
+       
+          <div id="playerBottomCards"  class="child">
+         <span  class="kard">🃑 </span>
+         <span  class="kard">🃑 </span>
+          <span class="kard">🂢 </span>
+          <span class="kard">🂶 </span>
+          <span class="kard">🂱 </span>
+          <span class="kard">🃑 </span>
+          <span class="kard">🂢 </span>
+          <span class="kard">🂶 </span>
+          <span class="kard">🂱 </span>
+          <span class="kard">🃑 </span>
+          <span class="kard">🂢 </span>
+          <span class="kard">🂶 </span>
+          <span class="kard">🂱 </span>
+
+        </div>
+        <div id="stack" class="child">
+          <span class="kard">🃑 </span>
+          <!-- <span class="kard">🂢 </span> -->
+          <!-- <span class="kard">🂶 </span> -->
+          <!-- <span class="kard">🂱 </span> -->
+        </div>
+
+      </div>
+        <!-- <div id="child playerBottom">bottom</div> -->
+        <!-- <div id="child playerLeft">left</div> -->
+        <!-- <div id="child playerRight">right</div> -->
+
+    </div>
+    <div id="playerScores" class="col-3">
+      y
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block javascript %}
-<script src="/assets/js/app.js"> </script>
+<!-- <script src="/assets/js/app.js"> </script> COMMENTED FOR NOW -->
 {% endblock %}

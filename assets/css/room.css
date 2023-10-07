@@ -1,0 +1,76 @@
+#roomTable {
+  position: relative;
+  height: 60vh;
+  padding: 0;
+  border-radius: 20px;
+  background-color: green;
+}
+
+.child {
+  position: absolute;
+  height: 50px;
+  width: 50px;
+  display: flex;
+  align-content: center;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5em;
+}
+
+.character {
+  text-shadow:
+    -1px 0 #000,
+    0 1px #000,
+    1px 0 #000,
+    0 -1px #000;
+}
+#stack {
+  width: 100%;
+  height: 100%;
+}
+
+.kard {
+  background-color: white;
+  margin: 10px;
+  padding: 2px;
+  border-radius: 5px;
+}
+
+#playerBottomCards {
+  bottom: 0;
+  margin-bottom: 70px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+#playerTop {
+  top: 0;
+  width: 100%;
+  margin-top: 5px;
+}
+
+#playerBottom {
+  bottom: 0;
+  width: 100%;
+  transform: rotate(180deg);
+  margin-bottom: 5px;
+}
+
+#playerRight {
+  right: 0;
+  height: 100%;
+  transform: rotate(90deg);
+  margin-right: 5px;
+}
+
+#playerLeft {
+  left: 0;
+  height: 100%;
+  transform: rotate(-90deg);
+  margin-left: 5px;
+}
+
+@media only screen and (min-width: 60em) {
+  .child {
+    font-size: 2.5em;
+  }
+}
