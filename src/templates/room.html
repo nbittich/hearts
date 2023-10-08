@@ -11,15 +11,29 @@
 <div id="app" data-ws-endpoint="{{ws_endpoint}}" data-room-id="{{room.id}}" data-user-id="{{user.id}}">
 
   <div class="row">
-    <div class="col-9">
-      <div id="roomTable">
-
-        <div id="playerTop" class="child "><span class="character">👤</span></div>
-        <div id="playerLeft" class="child "><span class="character">👤</span></div>
-        <div id="playerRight" class="child "><span class="character">👤</span></div>
-        <div id="playerBottom" class="child "><span class="character">👤</span></div>
+    <div class="container">
+      <div id="roomTable" class="roomTable">
+        <div id="playerTop" class="playerTop child ">
+          <span class="currentScore">0</span>
+          <span class="character">👤</span>
+          <span class="playerScore">0</span>
+        </div>
+        <div id="playerLeft" class="playerLeft child ">         
+          <span class="currentScore">0</span>
+          <span class="character">👤</span>
+          <span class="playerScore">0</span></div>
+        <div id="playerRight" class="playerRight child ">
+          <span class="currentScore">0</span>
+          <span class="character">👤</span>
+          <span class="playerScore">0</span>
+</div>
+        <div id="playerBottom" class="playerBottom child ">
+          <span class="currentScore">0</span>
+          <span class="character">👤</span>
+          <span class="playerScore">0</span>
+</div>
        
-          <div id="playerBottomCards"  class="child">
+          <div id="playerBottomCards"  class="playerBottomCards child">
          <span  class="kard">🃑 </span>
          <span  class="kard">🃑 </span>
           <span class="kard">🂢 </span>
@@ -35,22 +49,18 @@
           <span class="kard">🂱 </span>
 
         </div>
-        <div id="stack" class="child">
+        <div id="stack" class="stack child">
           <span class="kard">🃑 </span>
-          <!-- <span class="kard">🂢 </span> -->
-          <!-- <span class="kard">🂶 </span> -->
-          <!-- <span class="kard">🂱 </span> -->
+          <span class="kard">🂢 </span>
+          <span class="kard">🂶 </span>
+          <span class="kard">🂱 </span>
         </div>
 
       </div>
-        <!-- <div id="child playerBottom">bottom</div> -->
-        <!-- <div id="child playerLeft">left</div> -->
-        <!-- <div id="child playerRight">right</div> -->
+   
 
     </div>
-    <div id="playerScores" class="col-3">
-      y
-    </div>
+
   </div>
 </div>
 {% endblock %}

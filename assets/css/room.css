@@ -1,15 +1,14 @@
-#roomTable {
+.roomTable {
   position: relative;
   height: 60vh;
   padding: 0;
-  border-radius: 20px;
-  background-color: green;
+  border-radius: 40px;
+  background-color: seagreen;
+  border: 20px solid;
 }
 
 .child {
   position: absolute;
-  height: 50px;
-  width: 50px;
   display: flex;
   align-content: center;
   justify-content: center;
@@ -24,46 +23,71 @@
     1px 0 #000,
     0 -1px #000;
 }
-#stack {
+.stack {
   width: 100%;
   height: 100%;
 }
 
 .kard {
   background-color: white;
-  margin: 10px;
+  margin: 5px;
   padding: 2px;
   border-radius: 5px;
 }
 
-#playerBottomCards {
+.currentScore {
+  margin-left: 2px;
+  margin-right: 2px;
+  background: red;
+  color: black;
+  font-weight: bolder;
+  border-radius: 50%;
+  height: 20px;
+  width: 20px;
+  text-align: center;
+  font-size: 1rem;
+}
+.playerScore {
+  margin-left: 2px;
+  margin-right: 2px;
+  font-weight: bolder;
+  background: white;
+  border-radius: 50%;
+  height: 20px;
+  width: 20px;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.playerBottomCards {
   bottom: 0;
-  margin-bottom: 70px;
+  margin-bottom: 40px;
   width: 100%;
   flex-wrap: wrap;
+  background-color: crimson;
 }
-#playerTop {
+.playerTop {
   top: 0;
   width: 100%;
   margin-top: 5px;
 }
 
-#playerBottom {
+.playerBottom {
   bottom: 0;
   width: 100%;
   transform: rotate(180deg);
   margin-bottom: 5px;
 }
 
-#playerRight {
-  right: 0;
+.playerRight {
+  right: -15px;
   height: 100%;
   transform: rotate(90deg);
   margin-right: 5px;
 }
 
-#playerLeft {
-  left: 0;
+.playerLeft {
+  left: -15px;
   height: 100%;
   transform: rotate(-90deg);
   margin-left: 5px;
@@ -72,5 +96,8 @@
 @media only screen and (min-width: 60em) {
   .child {
     font-size: 2.5em;
+  }
+  .playerBottomCards {
+    margin-bottom: 50px;
   }
 }
