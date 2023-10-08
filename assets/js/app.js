@@ -1,15 +1,6 @@
-const appDiv = document.getElementById("app");
-const wsEndpoint = appDiv.dataset.wsEndpoint;
-const roomId = appDiv.dataset.roomId;
-const currentUserId = appDiv.dataset.userId;
-const ws = new WebSocket(`${wsEndpoint}/${roomId}`);
-
-const EXCHANGE_CARDS = 0;
-const PLAYING_HAND = 1;
-
 let isCurrentPlayer = false;
 
-let mode = EXCHANGE_CARDS;
+let mode = WAITING_FOR_PLAYERS;
 
 let cardsToExchange = [];
 
@@ -17,7 +8,7 @@ let cardToPlay = null;
 
 ws.onopen = sendGetCurrentState;
 
-ws.onmessage = function (evt) {
+ws.onmessage = function(evt) {
   const roomMessage = JSON.parse(evt.data);
   console.log(roomMessage);
 
@@ -25,16 +16,21 @@ ws.onmessage = function (evt) {
     console.log("roomMessage is a string type ", roomMessage.msgType);
   } else {
     if (roomMessage.msgType.waitingForPlayers) {
+      mode = WAITING_FOR_PLAYERS;
       renderPlayers(roomMessage.msgType.waitingForPlayers);
     } else if (roomMessage.msgType.joined) {
       renderPlayerJoined(roomMessage.msgType.joined);
     } else if (roomMessage.msgType.newHand) {
+      mode = PLAYING_HAND;
       renderNewHand(roomMessage.msgType.newHand);
     } else if (roomMessage.msgType.receiveCards) {
+      mode = EXCHANGE_CARDS;
       renderCards(roomMessage.msgType.receiveCards);
     } else if (roomMessage.msgType.nextPlayerToReplaceCards) {
+      mode = EXCHANGE_CARDS;
       renderNextPlayer(roomMessage.msgType.nextPlayerToReplaceCards);
     } else if (roomMessage.msgType.nextPlayerToPlay) {
+      mode = PLAYING_HAND;
       let msg = roomMessage.msgType.nextPlayerToPlay;
       if (msg.current_cards) {
         renderCards(msg.current_cards);
@@ -53,9 +49,10 @@ ws.onmessage = function (evt) {
         renderPlayers(state.player_scores.map((ps) => ps.player_id));
         renderNextPlayer(state);
       }
-      if (state.current_hand != state.hands) {
-        // todo could be off by one
+      if (state.current_hand <= state.hands) {
         renderCards(state.current_cards);
+      } else {
+        mode = END;
       }
       renderPlayersScore(state.current_scores);
       renderStack({ stack: state.current_stack });
@@ -63,48 +60,12 @@ ws.onmessage = function (evt) {
   }
 };
 
-ws.onclose = function () {
+ws.onclose = function() {
   // websocket is closed.
   console.log("Connection is closed...");
 };
 
 // helper send msg
-function sendGetCurrentState() {
-  sendStringMessageType("getCurrentState");
-}
-
-function sendReplaceCards(cards) {
-  let obj = {
-    replaceCards: cards,
-  };
-  sendStringMessageType(obj);
-}
-
-function sendPlayCard(card) {
-  let obj = {
-    play: card,
-  };
-  sendStringMessageType(obj);
-}
-
-function sendGetCards() {
-  sendStringMessageType("getCards");
-}
-
-function sendJoin() {
-  sendStringMessageType("join");
-}
-function sendJoinBot() {
-  sendStringMessageType("joinBot");
-}
-
-function sendStringMessageType(msgType) {
-  ws.send(
-    JSON.stringify({
-      msgType: msgType,
-    }),
-  );
-}
 
 // html render
 
@@ -115,8 +76,6 @@ const renderPlayer = (playersDiv, player) => {
   playersDiv.appendChild(p);
 };
 function renderPlayers(players) {
-  // update screen with waiting for players
-
   let playersDiv = appDiv.querySelector("#players");
 
   if (playersDiv) {
@@ -233,7 +192,7 @@ function renderNextPlayer({ current_player_id }) {
   nextPlayerElt.classList = nextPlayerElt.classList + " underline";
 }
 
-function renderCardSubmitButton(renderCondition = false, onClick = (_) => {}) {
+function renderCardSubmitButton(renderCondition = false, onClick = (_) => { }) {
   let divCardsBlock = appDiv.querySelector("#myCards");
 
   let button = divCardsBlock.querySelector("#submitExchangeCards");
@@ -291,7 +250,7 @@ function renderStack({ stack }) {
   }
   for (const card of stack) {
     if (card) {
-      renderCard(stackDiv, card, (_) => {});
+      renderCard(stackDiv, card, (_) => { });
     }
   }
 }

@@ -37,6 +37,13 @@
     1px -1px 1px black;
 }
 
+.gameState {
+  width: 100%;
+  height: 100%;
+}
+.gameState > span {
+  font-size: 0.5em;
+}
 .currentPlayer {
   text-shadow:
     0 0 1px yellow,

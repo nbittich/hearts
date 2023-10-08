@@ -1,75 +1,67 @@
-{% extends "base.html" %}
-{% block customCss %}
-  <link href="/assets/css/room.css" rel="stylesheet">
-{% endblock %}
-{% block title %}{{ super() }}{% endblock %}
-
-
-{% block body %}
+{% extends "base.html" %} {% block customCss %}
+<link href="/assets/css/room.css" rel="stylesheet" />
+{% endblock %} {% block title %}{{ super() }}{% endblock %} {% block body %}
 <p>Room {{room.id}}</p>
-<hr>
-<div id="app" data-ws-endpoint="{{ws_endpoint}}" data-room-id="{{room.id}}" data-user-id="{{user.id}}">
-
+<hr />
+<div
+  id="app"
+  data-ws-endpoint="{{ws_endpoint}}"
+  data-room-id="{{room.id}}"
+  data-user-id="{{user.id}}"
+>
   <div class="row">
     <div class="container">
       <div id="roomTable" class="roomTable">
-        
+        <div class="child gameState"><span>Waiting for players...</span></div>
+
         <div id="stack" class="stack child">
-          <span class="kard">🃑 </span>
-          <span class="kard">🂢 </span>
-          <span class="kard">🂶 </span>
-          <span class="kard">🂱 </span>
+          <!-- <span class="kard">🃑 </span> -->
+          <!-- <span class="kard">🂢 </span> -->
+          <!-- <span class="kard">🂶 </span> -->
+          <!-- <span class="kard">🂱 </span> -->
         </div>
-        <div id="playerTop" class="playerTop child ">
+        <div id="playerTop" class="playerTop child">
           <span class="currentScore">0</span>
           <a href="#" class="seat emptySeat" title="playerTop">👤</a>
           <span class="playerScore">0</span>
         </div>
-        <div id="playerLeft" class="playerLeft child ">         
+        <div id="playerLeft" class="playerLeft child">
           <span class="currentScore">0</span>
           <a href="#" class="seat emptySeat" title="playerLeft">👤</a>
           <span class="playerScore">0</span>
-          
         </div>
-        <div id="playerRight" class="playerRight child ">
+        <div id="playerRight" class="playerRight child">
           <span class="currentScore">0</span>
           <a href="#" class="seat filledSeat" title="playerRight">👤</a>
           <span class="playerScore">0</span>
-         
-</div>
-        <div id="playerBottom" class="playerBottom child ">
-          <span class="currentScore">0</span>
-          <a href="#" class="seat filledSeat currentPlayer" title="playerBottom">👤</a>
-          <span class="playerScore">0</span>
-
-</div>
-       
-          <div id="playerBottomCards"  class="playerBottomCards child">
-          <a href="#" class="kard">🃑 </a>
-          <a href="#" class="kard">🃑 </a>
-          <a href="#" class="kard">🂢 </a>
-          <a href="#" class="kard">🂶 </a>
-          <a href="#" class="kard">🂱 </a>
-          <a href="#" class="kard">🃑 </a>
-          <a href="#" class="kard">🂢 </a>
-          <a href="#" class="kard">🂶 </a>
-          <a href="#" class="kard">🂱 </a>
-          <a href="#" class="kard">🃑 </a>
-          <a href="#" class="kard">🂢 </a>
-          <a href="#" class="kard">🂶 </a>
-          <a href="#" class="kard">🂱 </a>
-
         </div>
-
+        <div id="playerBottom" class="playerBottom child">
+          <span class="currentScore">0</span>
+          <a href="#" class="seat filledSeat currentPlayer" title="playerBottom"
+            >👤</a
+          >
+          <span class="playerScore">0</span>
+        </div>
+        <div id="playerBottomCards" class="playerBottomCards child">
+          <!-- <a href="#" class="kard">🃑 </a> -->
+          <!-- <a href="#" class="kard">🃑 </a> -->
+          <!-- <a href="#" class="kard">🂢 </a> -->
+          <!-- <a href="#" class="kard">🂶 </a> -->
+          <!-- <a href="#" class="kard">🂱 </a> -->
+          <!-- <a href="#" class="kard">🃑 </a> -->
+          <!-- <a href="#" class="kard">🂢 </a> -->
+          <!-- <a href="#" class="kard">🂶 </a> -->
+          <!-- <a href="#" class="kard">🂱 </a> -->
+          <!-- <a href="#" class="kard">🃑 </a> -->
+          <!-- <a href="#" class="kard">🂢 </a> -->
+          <!-- <a href="#" class="kard">🂶 </a> -->
+          <!-- <a href="#" class="kard">🂱 </a> -->
+        </div>
       </div>
-   
-
     </div>
-
   </div>
 </div>
-{% endblock %}
-
-{% block javascript %}
+{% endblock %} {% block javascript %}
+<script src="/assets/js/room.js" type="module"></script>
 <!-- <script src="/assets/js/app.js"> </script> COMMENTED FOR NOW -->
 {%endblock %}
