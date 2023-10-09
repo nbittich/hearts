@@ -119,7 +119,7 @@ export function renderPlayer(
 }
 
 export function getOrderedPlayerDivs(players) {
-  // we always start with bottom player as current user
+  // we always start with bottom player
   let ordered = [
     {
       id: null,
@@ -129,15 +129,13 @@ export function getOrderedPlayerDivs(players) {
       id: null,
       div: document.querySelector("#playerLeft"),
     },
-
-    {
-      id: null,
-      div: document.querySelector("#playerRight"),
-    },
-
     {
       id: null,
       div: document.querySelector("#playerTop"),
+    },
+    {
+      id: null,
+      div: document.querySelector("#playerRight"),
     },
   ];
   if (!players.length || players.every((p) => !p)) {
@@ -150,8 +148,8 @@ export function getOrderedPlayerDivs(players) {
     let topIdx = idxCurrentUser < 2 ? idxCurrentUser + 2 : idxCurrentUser - 2;
     ordered[0].id = players[idxCurrentUser];
     ordered[1].id = players[leftIdx];
-    ordered[2].id = players[rightIdx];
-    ordered[3].id = players[topIdx];
+    ordered[2].id = players[topIdx];
+    ordered[3].id = players[rightIdx];
   } else {
     for (let idx = 0; idx < players.length; idx++) {
       ordered[idx].id = players[idx];
