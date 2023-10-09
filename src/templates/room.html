@@ -12,7 +12,7 @@
   <div class="row">
     <div class="container">
       <div id="roomTable" class="roomTable">
-        <div class="child gameState"><span>Waiting for players...</span></div>
+        <div class="child gameState d-none"><span></span></div>
 
         <div id="stack" class="stack child">
           <!-- <span class="kard">🃑 </span> -->
@@ -21,26 +21,34 @@
           <!-- <span class="kard">🂱 </span> -->
         </div>
         <div id="playerTop" class="playerTop child">
-          <span class="currentScore">0</span>
-          <a href="#" class="seat emptySeat" title="playerTop">👤</a>
-          <span class="playerScore">0</span>
+          <div class="flex flex-column">
+            <div class="score">
+              <span class="currentScore">-</span>
+              <a href="#" class="seat emptySeat" title="playerTop">👤</a>
+              <span class="playerScore">-</span>
+            </div>
+            <p class="playerName p-0">-</p>
+          </div>
         </div>
         <div id="playerLeft" class="playerLeft child">
-          <span class="currentScore">0</span>
-          <a href="#" class="seat emptySeat" title="playerLeft">👤</a>
-          <span class="playerScore">0</span>
-        </div>
-        <div id="playerRight" class="playerRight child">
-          <span class="currentScore">0</span>
-          <a href="#" class="seat filledSeat" title="playerRight">👤</a>
-          <span class="playerScore">0</span>
+          <div class="flex flex-column">
+            <div class="score">
+              <span class="currentScore">-</span>
+              <a href="#" class="seat emptySeat" title="playerLeft">👤</a>
+              <span class="playerScore">-</span>
+            </div>
+            <p class="playerName p-0">-</p>
+          </div>
         </div>
         <div id="playerBottom" class="playerBottom child">
-          <span class="currentScore">0</span>
-          <a href="#" class="seat filledSeat currentPlayer" title="playerBottom"
-            >👤</a
-          >
-          <span class="playerScore">0</span>
+          <div class="flex flex-column">
+            <p class="playerName p-0">-</p>
+            <div class="score">
+              <span class="currentScore">-</span>
+              <a href="#" class="seat emptySeat" title="playerBottom">👤</a>
+              <span class="playerScore">-</span>
+            </div>
+          </div>
         </div>
         <div id="playerBottomCards" class="playerBottomCards child">
           <!-- <a href="#" class="kard">🃑 </a> -->
@@ -57,11 +65,21 @@
           <!-- <a href="#" class="kard">🂶 </a> -->
           <!-- <a href="#" class="kard">🂱 </a> -->
         </div>
+        <div id="playerRight" class="playerRight child">
+          <div class="flex flex-column">
+            <div class="score">
+              <span class="currentScore">-</span>
+              <a href="#" class="seat emptySeat" title="playerRight">👤</a>
+              <span class="playerScore">-</span>
+            </div>
+            <p class="playerName p-0">-</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
+  {% endblock %} {% block javascript %}
+  <script src="/assets/js/room.js" type="module"></script>
+  <!-- <script src="/assets/js/app.js"> </script> COMMENTED FOR NOW -->
+  {%endblock %}
 </div>
-{% endblock %} {% block javascript %}
-<script src="/assets/js/room.js" type="module"></script>
-<!-- <script src="/assets/js/app.js"> </script> COMMENTED FOR NOW -->
-{%endblock %}

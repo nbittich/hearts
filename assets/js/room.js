@@ -7,12 +7,20 @@ import {
   NEW_HAND,
   WAITING_FOR_MESSAGE,
   WAITING_FOR_PLAYERS,
+  EXCHANGE_CARDS,
+  PLAYING_HAND,
   WEBSOCKET,
+  CURRENT_USER_ID,
 } from "./constants.js";
-import { renderState } from "./render.js";
-import { sendGetCurrentState } from "./messages.js";
+import {
+  renderState,
+  renderWaitingForPlayers,
+  renderNewHand,
+} from "./render.js";
+import { sendGetCards, sendGetCurrentState } from "./messages.js";
 
 let mode = WAITING_FOR_MESSAGE;
+let playerIds = [];
 
 renderState(mode);
 
@@ -35,10 +43,24 @@ WEBSOCKET.onmessage = (evt) => {
   } else {
     if (roomMessage.msgType.waitingForPlayers) {
       mode = WAITING_FOR_PLAYERS;
+      playerIds = roomMessage.msgType.waitingForPlayers;
+      renderWaitingForPlayers(mode, playerIds);
     } else if (roomMessage.msgType.joined) {
-      mode = WAITING_FOR_PLAYERS;
+      if (mode != WAITING_FOR_PLAYERS) {
+        throw `joined event and invalid mode ${mode}`;
+      }
+      let emptySeat = playerIds.indexOf(null);
+      playerIds[emptySeat] = roomMessage.msgType.joined;
+      renderWaitingForPlayers(mode, playerIds);
     } else if (roomMessage.msgType.newHand) {
       mode = NEW_HAND;
+      let { player_ids_in_order, player_scores, current_player_id } =
+        roomMessage.msgType.newHand;
+      playerIds = player_ids_in_order;
+      renderNewHand(mode, playerIds, player_scores, current_player_id);
+      if (playerIds.includes(CURRENT_USER_ID)) {
+        sendGetCards();
+      }
     } else if (roomMessage.msgType.receiveCards) {
       mode = EXCHANGE_CARDS;
     } else if (roomMessage.msgType.nextPlayerToReplaceCards) {
@@ -51,5 +73,5 @@ WEBSOCKET.onmessage = (evt) => {
       // todo set mode
     }
   }
-  renderState(mode);
+  //renderState(mode);
 };

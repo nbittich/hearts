@@ -16,6 +16,12 @@
   font-size: 1.5em;
 }
 
+.playerName {
+  font-size: 0.5em;
+  font-weight: bold;
+  margin: 0;
+  text-align: center;
+}
 .seat {
   color: transparent;
   text-decoration: none;
@@ -40,6 +46,7 @@
 .gameState {
   width: 100%;
   height: 100%;
+  flex-direction: column;
 }
 .gameState > span {
   font-size: 0.5em;
@@ -56,7 +63,7 @@
 .stack {
   left: 50%;
   right: 50%;
-  top: 50%;
+  /* top: 50%; */
   bottom: 50%;
 }
 
@@ -97,7 +104,7 @@
 
 .playerBottomCards {
   bottom: 0;
-  margin-bottom: 40px;
+  margin-bottom: 50px;
   width: 100%;
   flex-wrap: wrap;
   background-color: crimson;
@@ -120,29 +127,45 @@
 }
 
 .playerRight {
-  right: 0;
-  top: 50%;
+  right: -15px;
+  /* top: 50%; */
   bottom: 50%;
   margin-right: 5px;
   display: flex;
   flex-direction: column;
 }
-
-.playerRight :not(.playerScore, .currentScore) {
+.playerRight {
   transform: rotate(90deg);
 }
-
-.playerBottom :not(.playerScore, .currentScore) {
-  transform: rotate(180deg);
-}
-
-.playerLeft :not(.playerScore, .currentScore) {
+.playerRight .score .currentScore,
+.playerRight .score .playerScore {
   transform: rotate(-90deg);
 }
 
+.playerBottom {
+  transform: rotate(180deg);
+}
+.playerBottom .score .currentScore,
+.playerBottom .playerName,
+.playerBottom .score .playerScore {
+  transform: rotate(-180deg);
+}
+
+.score {
+  display: inline-flex;
+}
 .playerLeft {
-  left: 0;
-  top: 50%;
+  transform: rotate(-90deg);
+}
+
+.playerLeft .score .currentScore,
+.playerLeft .score .playerScore {
+  transform: rotate(90deg);
+}
+
+.playerLeft {
+  left: -15px;
+  /* top: 50%; */
   bottom: 50%;
   margin-left: 5px;
 
@@ -151,10 +174,7 @@
 }
 
 @media only screen and (min-width: 60em) {
-  .child {
-    font-size: 2.5em;
-  }
-  .playerBottomCards {
-    margin-bottom: 50px;
+  .kard {
+    font-size: 2em;
   }
 }
