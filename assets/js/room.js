@@ -17,6 +17,7 @@ import {
   renderWaitingForPlayers,
   renderNewHand,
   renderReceivedCards,
+  renderNextPlayerToReplaceCards,
 } from "./render.js";
 import { sendGetCards, sendGetCurrentState } from "./messages.js";
 
@@ -66,6 +67,10 @@ WEBSOCKET.onmessage = (evt) => {
       renderReceivedCards(roomMessage.msgType.receiveCards);
     } else if (roomMessage.msgType.nextPlayerToReplaceCards) {
       mode = EXCHANGE_CARDS;
+      renderNextPlayerToReplaceCards(
+        mode,
+        roomMessage.msgType.nextPlayerToReplaceCards.current_player_id,
+      );
     } else if (roomMessage.msgType.nextPlayerToPlay) {
       mode = PLAYING_HAND;
     } else if (roomMessage.msgType.updateStackAndScore) {

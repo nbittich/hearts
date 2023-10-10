@@ -82,7 +82,17 @@ export function renderWaitingForPlayers(mode, seats) {
     renderPlayer(div, false, id);
   }
 }
-
+export function renderNextPlayerToReplaceCards(mode, currentPlayerId) {
+  if (mode != EXCHANGE_CARDS) {
+    throw `invalid call to renderNextPlayerToReplaceCards: ${mode}`;
+  }
+  renderState(mode);
+  let currentPlayerIdDiv = findPlayerDivById(currentPlayerId);
+  if (!currentPlayerIdDiv) {
+    throw `could not find playerDiv for currentPlayerId ${currentPlayerId}`;
+  }
+  renderPlayer(currentPlayerIdDiv, true, currentPlayerId);
+}
 export function renderNewHand(
   mode,
   playerIds,
@@ -147,6 +157,21 @@ export function renderCard(
   parentDiv.appendChild(cardComponent);
 }
 
+export function findPlayerDivById(playerId) {
+  if (PLAYER_TOP_DIV.dataset.id === playerId) {
+    return PLAYER_TOP_DIV;
+  } else if (PLAYER_LEFT_DIV.dataset.id === playerId) {
+    return PLAYER_LEFT_DIV;
+  } else if (PLAYER_RIGHT_DIV.dataset.id === playerId) {
+    return PLAYER_RIGHT_DIV;
+  } else if (PLAYER_BOTTOM_DIV.dataset.id === playerId) {
+    return PLAYER_BOTTOM_DIV;
+  } else {
+    console.log(`player ${playerId} not assigned to a div`);
+  }
+  return null;
+}
+
 export function renderPlayer(
   playerDiv,
   currentPlayer = false,
@@ -154,6 +179,9 @@ export function renderPlayer(
   currentScore = 0,
   totalScore = 0,
 ) {
+  if (playerId) {
+    playerDiv.dataset.id = playerId;
+  }
   let seatDiv = playerDiv.querySelector(".seat");
   seatDiv.classList = "seat";
   if (!playerId) {
@@ -168,6 +196,16 @@ export function renderPlayer(
   totalScoreSpan.innerText = totalScore;
   playerNameP.innerText = playerId?.substring(0, 8) || "-";
   if (currentPlayer) {
+    // reset previous current user
+    let previousPlayerDiv = document.querySelector(
+      `[data-current-player="true"]`,
+    );
+    if (previousPlayerDiv) {
+      previousPlayerDiv.dataset.currentPlayer = false;
+      let previousSeatDiv = previousPlayerDiv.querySelector(".seat");
+      previousSeatDiv.classList.remove("currentPlayer");
+    }
+    playerDiv.dataset.currentPlayer = true;
     seatDiv.classList.add("currentPlayer");
   }
 }
