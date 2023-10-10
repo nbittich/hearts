@@ -6,13 +6,19 @@ import {
   PLAYING_HAND,
   WAITING_FOR_PLAYERS,
   CURRENT_USER_ID,
+  STATE_DIV,
+  STACK_DIV,
+  USERCARDS_DIV,
+  PLAYER_BOTTOM_DIV,
+  PLAYER_TOP_DIV,
+  PLAYER_LEFT_DIV,
+  PLAYER_RIGHT_DIV,
 } from "./constants.js";
 import { sendJoin, sendJoinBot } from "./messages.js";
 
-export function renderState(mode, customizeStateDiv = (stateDiv) => { }) {
+export function renderState(mode, customizeStateDiv = (_stateDiv) => { }) {
   // reset state
-  const stateDiv = document.querySelector(".gameState");
-  stateDiv.innerHTML = "";
+  STATE_DIV.innerHTML = "";
 
   let message = null;
 
@@ -38,17 +44,16 @@ export function renderState(mode, customizeStateDiv = (stateDiv) => { }) {
   }
   if (message) {
     // clear the stack div.
-    const stackDiv = document.querySelector("#stack");
-    stackDiv.innerHTML = "";
-    stackDiv.classList.add("d-none");
+    STACK_DIV.innerHTML = "";
+    STACK_DIV.classList.add("d-none");
     let span = document.createElement("span");
     span.innerText = message;
-    stateDiv.appendChild(span);
-    stateDiv.classList.remove("d-none");
+    STATE_DIV.appendChild(span);
+    STATE_DIV.classList.remove("d-none");
   } else {
-    stateDiv.classList.add("d-none");
+    STATE_DIV.classList.add("d-none");
   }
-  customizeStateDiv(stateDiv);
+  customizeStateDiv(STATE_DIV);
 }
 
 export function renderWaitingForPlayers(mode, seats) {
@@ -77,6 +82,7 @@ export function renderWaitingForPlayers(mode, seats) {
     renderPlayer(div, false, id);
   }
 }
+
 export function renderNewHand(
   mode,
   playerIds,
@@ -93,6 +99,54 @@ export function renderNewHand(
     renderPlayer(div, currentPlayerId === id, id, 0, totalScore);
   }
 }
+
+export function renderReceivedCards(cards) {
+  USERCARDS_DIV.innerHTML = "";
+  for (const card of cards) {
+    renderCard(USERCARDS_DIV, card, true);
+  }
+}
+
+export function renderCard(
+  parentDiv,
+  card,
+  clickable = true,
+  onClick = (cardElt, clickedCard, isSelected) => {
+    console.log(
+      `card ${clickedCard} clicked! is Selected = ${isSelected}, cardElt = ${cardElt}`,
+    );
+  },
+) {
+  let cardComponent = document.createElement(clickable ? "a" : "span");
+  cardComponent.classList = "kard";
+  switch (card.type_card) {
+    case "CLUB":
+    case "SPADE":
+      cardComponent.classList.add("dark");
+      break;
+    case "HEART":
+    case "DIAMOND":
+      cardComponent.classList.add("crimson");
+      break;
+    default:
+      throw `unknown type card ${card}`;
+  }
+  cardComponent.innerText = card.emoji;
+  if (clickable) {
+    cardComponent.onclick = (e) => {
+      let cardElt = e.currentTarget;
+      let clickedCard = JSON.parse(cardElt.dataset.card);
+      let isSelected = cardElt.dataset.selected === "true";
+      onClick(cardElt, clickedCard, isSelected);
+    };
+    cardComponent.href = "#";
+
+    cardComponent.dataset.selected = false;
+    cardComponent.dataset.card = JSON.stringify(card);
+  }
+  parentDiv.appendChild(cardComponent);
+}
+
 export function renderPlayer(
   playerDiv,
   currentPlayer = false,
@@ -123,19 +177,19 @@ export function getOrderedPlayerDivs(players) {
   let ordered = [
     {
       id: null,
-      div: document.querySelector("#playerBottom"),
+      div: PLAYER_BOTTOM_DIV,
     },
     {
       id: null,
-      div: document.querySelector("#playerLeft"),
+      div: PLAYER_LEFT_DIV,
     },
     {
       id: null,
-      div: document.querySelector("#playerTop"),
+      div: PLAYER_TOP_DIV,
     },
     {
       id: null,
-      div: document.querySelector("#playerRight"),
+      div: PLAYER_RIGHT_DIV,
     },
   ];
   if (!players.length || players.every((p) => !p)) {

@@ -10,3 +10,12 @@ export const WS_ENDPOINT = APP_DIV.dataset.wsEndpoint;
 export const ROOM_ID = APP_DIV.dataset.roomId;
 export const CURRENT_USER_ID = APP_DIV.dataset.userId;
 export const WEBSOCKET = new WebSocket(`${WS_ENDPOINT}/${ROOM_ID}`);
+
+// divs
+export const STATE_DIV = document.querySelector(".gameState");
+export const STACK_DIV = document.querySelector("#stack");
+export const USERCARDS_DIV = document.querySelector("#playerBottomCards");
+export const PLAYER_BOTTOM_DIV = document.querySelector("#playerBottom");
+export const PLAYER_LEFT_DIV = document.querySelector("#playerLeft");
+export const PLAYER_TOP_DIV = document.querySelector("#playerTop");
+export const PLAYER_RIGHT_DIV = document.querySelector("#playerRight");
