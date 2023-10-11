@@ -103,10 +103,24 @@ export function renderNextPlayer(mode, currentPlayerId) {
   }
   renderPlayer(currentPlayerIdDiv, true, currentPlayerId);
 }
+
+export function renderScores(current_scores, player_scores) {
+  const renderScoresBySpanClass = (player_scores, spanClass) => {
+    for (const { player_id, score } of player_scores) {
+      let playerIdDiv = findPlayerDivById(player_id);
+      let scoreSpan = playerIdDiv.querySelector(spanClass);
+      scoreSpan.innerText = score;
+    }
+  };
+  renderScoresBySpanClass(current_scores, ".currentScore");
+  renderScoresBySpanClass(player_scores, ".playerScore");
+}
+
 export function renderNewHand(
   mode,
   playerIds,
-  playersAndScores,
+  currentScores,
+  playerScores,
   currentPlayerId,
 ) {
   if (mode != NEW_HAND) {
@@ -115,9 +129,9 @@ export function renderNewHand(
   renderState(mode);
   let orderedPlayerDivs = getOrderedPlayerDivs(playerIds);
   for (const { id, div } of orderedPlayerDivs) {
-    let totalScore = playersAndScores.find((p) => p.player_id === id)?.score;
-    renderPlayer(div, currentPlayerId === id, id, 0, totalScore);
+    renderPlayer(div, currentPlayerId === id, id);
   }
+  renderScores(currentScores, playerScores);
 }
 export function renderStack(mode, stack) {
   STACK_DIV.innerHTML = "";
@@ -221,13 +235,7 @@ export function findPlayerDivById(playerId) {
   return null;
 }
 
-export function renderPlayer(
-  playerDiv,
-  currentPlayer = false,
-  playerId,
-  currentScore = 0,
-  totalScore = 0,
-) {
+export function renderPlayer(playerDiv, currentPlayer = false, playerId) {
   if (playerId) {
     playerDiv.dataset.id = playerId;
   }
@@ -238,11 +246,7 @@ export function renderPlayer(
   } else {
     seatDiv.classList.add("filledSeat");
   }
-  let currentScoreSpan = playerDiv.querySelector(".score .currentScore");
-  let totalScoreSpan = playerDiv.querySelector(".score .playerScore");
   let playerNameP = playerDiv.querySelector(".playerName");
-  currentScoreSpan.innerText = currentScore;
-  totalScoreSpan.innerText = totalScore;
   playerNameP.innerText = playerId?.substring(0, 8) || "-";
   if (currentPlayer) {
     // reset previous current user

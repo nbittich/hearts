@@ -50,6 +50,7 @@ pub enum RoomMessageType {
         current_player_id: UserId,
         current_hand: u8,
         player_scores: [PlayerState; PLAYER_NUMBER],
+        current_scores: Option<[PlayerState; PLAYER_NUMBER]>,
         hands: u8,
     },
     NextPlayerToReplaceCards {
@@ -63,6 +64,7 @@ pub enum RoomMessageType {
     UpdateStackAndScore {
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
         player_scores: [PlayerState; PLAYER_NUMBER],
+        current_scores: Option<[PlayerState; PLAYER_NUMBER]>,
     },
     End {
         player_scores: [PlayerState; PLAYER_NUMBER],
@@ -175,12 +177,9 @@ async fn send_message_after_played(
     let Some(ref current_player_id) = game.current_player_id() else {
         unreachable!()
     };
-    let scores = game.current_score_by_id();
+
     match &mut game.state {
-        GameState::PlayingHand {
-            stack,
-            current_scores,
-        } => {
+        GameState::PlayingHand { stack, .. } => {
             sender.send(RoomMessage {
                 from_user_id: None,
                 to_user_id: None,
@@ -191,20 +190,24 @@ async fn send_message_after_played(
                 },
             })?;
         }
-        GameState::ComputeScore {
-            ref stack,
-            ref current_scores,
-        } => {
+        GameState::ComputeScore { ref stack, .. } => {
+            let stack = *stack;
+
+            game.compute_score()?;
+
+            let current_scores = game.current_score_by_id();
+            let player_scores = game.player_score_by_id();
             sender.send(RoomMessage {
                 from_user_id: None,
                 to_user_id: None,
                 msg_type: RoomMessageType::UpdateStackAndScore {
-                    stack: convert_stack_to_card_player_card(stack),
-                    player_scores: scores,
+                    stack: convert_stack_to_card_player_card(&stack),
+                    current_scores: Some(current_scores),
+                    player_scores,
                 },
             })?;
             tokio::time::sleep(Duration::from_secs(2)).await;
-            game.compute_score()?;
+
             match &game.state {
                 GameState::PlayingHand {
                     stack,
@@ -226,6 +229,7 @@ async fn send_message_after_played(
 
                     let player_ids_in_order = game.player_ids_in_order();
                     let player_scores = game.player_score_by_id();
+                    let current_scores = game.current_score_by_id();
 
                     sender.send(RoomMessage {
                         from_user_id: None,
@@ -233,6 +237,7 @@ async fn send_message_after_played(
                         msg_type: RoomMessageType::NewHand {
                             player_ids_in_order,
                             current_player_id,
+                            current_scores: Some(current_scores),
                             player_scores,
                             hands: game.hands,
                             current_hand: game.current_hand,
@@ -480,12 +485,14 @@ pub async fn room_task(
 
                             // notify game is about to start
                             let player_scores = game.player_score_by_id();
+                            let current_scores = game.current_score_by_id();
                             sender.send(RoomMessage {
                                 from_user_id: None,
                                 to_user_id: None,
                                 msg_type: RoomMessageType::NewHand {
                                     player_ids_in_order,
                                     player_scores,
+                                    current_scores: Some(current_scores),
                                     current_player_id,
                                     current_hand: game.current_hand,
                                     hands: game.hands,

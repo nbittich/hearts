@@ -21,6 +21,7 @@ import {
   renderCardSubmitButton,
   renderStack,
   renderNextPlayer,
+  renderScores,
 } from "./render.js";
 import {
   sendGetCards,
@@ -66,11 +67,21 @@ WEBSOCKET.onmessage = (evt) => {
       renderWaitingForPlayers(mode, playerIds);
     } else if (roomMessage.msgType.newHand) {
       mode = NEW_HAND;
-      let { player_ids_in_order, player_scores, current_player_id } =
-        roomMessage.msgType.newHand;
+      let {
+        player_ids_in_order,
+        player_scores,
+        current_scores,
+        current_player_id,
+      } = roomMessage.msgType.newHand;
       playerIds = player_ids_in_order;
       currentPlayerId = current_player_id;
-      renderNewHand(mode, playerIds, player_scores, currentPlayerId);
+      renderNewHand(
+        mode,
+        playerIds,
+        current_scores,
+        player_scores,
+        currentPlayerId,
+      );
       if (playerIds.includes(CURRENT_USER_ID)) {
         sendGetCards();
       }
@@ -95,8 +106,10 @@ WEBSOCKET.onmessage = (evt) => {
       renderStack(mode, stack);
       renderNextPlayer(mode, currentPlayerId);
     } else if (roomMessage.msgType.updateStackAndScore) {
-      let { stack, player_scores } = roomMessage.msgType.updateStackAndScore;
+      let { stack, player_scores, current_scores } =
+        roomMessage.msgType.updateStackAndScore;
       renderStack(mode, stack);
+      renderScores(current_scores, player_scores);
     } else if (roomMessage.msgType.state) {
       // todo set mode
     }
