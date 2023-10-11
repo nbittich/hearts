@@ -43,6 +43,11 @@
     1px 1px 1px black,
     1px -1px 1px black;
 }
+.kard-selected {
+  background-color: floralwhite;
+  border-radius: 10px;
+  transform: translateY(-20px);
+}
 
 .gameState {
   width: 100%;

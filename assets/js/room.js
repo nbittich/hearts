@@ -18,12 +18,19 @@ import {
   renderNewHand,
   renderReceivedCards,
   renderNextPlayerToReplaceCards,
+  renderCardSubmitButton,
 } from "./render.js";
-import { sendGetCards, sendGetCurrentState } from "./messages.js";
+import {
+  sendGetCards,
+  sendGetCurrentState,
+  sendReplaceCards,
+} from "./messages.js";
 
 let mode = WAITING_FOR_MESSAGE;
 let playerIds = [];
-
+let currentPlayerId = null;
+let cardToPlay = null;
+let cardsToExchange = null;
 renderState(mode);
 
 WEBSOCKET.onopen = sendGetCurrentState;
@@ -59,18 +66,19 @@ WEBSOCKET.onmessage = (evt) => {
       let { player_ids_in_order, player_scores, current_player_id } =
         roomMessage.msgType.newHand;
       playerIds = player_ids_in_order;
-      renderNewHand(mode, playerIds, player_scores, current_player_id);
+      currentPlayerId = current_player_id;
+      renderNewHand(mode, playerIds, player_scores, currentPlayerId);
       if (playerIds.includes(CURRENT_USER_ID)) {
         sendGetCards();
       }
     } else if (roomMessage.msgType.receiveCards) {
-      renderReceivedCards(roomMessage.msgType.receiveCards);
+      renderReceivedCards(roomMessage.msgType.receiveCards, handleCardClicked);
     } else if (roomMessage.msgType.nextPlayerToReplaceCards) {
       mode = EXCHANGE_CARDS;
-      renderNextPlayerToReplaceCards(
-        mode,
-        roomMessage.msgType.nextPlayerToReplaceCards.current_player_id,
-      );
+      let { current_player_id } = roomMessage.msgType.nextPlayerToReplaceCards;
+      currentPlayerId = current_player_id;
+
+      renderNextPlayerToReplaceCards(mode, currentPlayerId);
     } else if (roomMessage.msgType.nextPlayerToPlay) {
       mode = PLAYING_HAND;
     } else if (roomMessage.msgType.updateStackAndScore) {
@@ -81,3 +89,43 @@ WEBSOCKET.onmessage = (evt) => {
   }
   //renderState(mode);
 };
+
+function handleCardClicked(cardElt, clickedCard, isSelected) {
+  //toggle
+  switch (mode) {
+    case EXCHANGE_CARDS:
+    case NEW_HAND:
+      cardsToExchange = cardsToExchange || [];
+
+      if (isSelected) {
+        cardsToExchange = cardsToExchange.filter(
+          (c) => c.position_in_deck !== clickedCard.position_in_deck,
+        );
+        cardElt.classList.remove("kard-selected");
+        cardElt.dataset.selected = false;
+      } else if (cardsToExchange.length < 3) {
+        cardsToExchange.push(clickedCard);
+        cardElt.classList.add("kard-selected");
+        cardElt.dataset.selected = true;
+      }
+
+      renderCardSubmitButton(
+        mode,
+        cardsToExchange.length === 3 && currentPlayerId === CURRENT_USER_ID,
+        (evt) => {
+          evt.preventDefault();
+          sendReplaceCards(cardsToExchange);
+          cardsToExchange = [];
+          renderCardSubmitButton(mode); // remove submit button
+          sendGetCards();
+        },
+      );
+
+      break;
+    case PLAYING_HAND:
+      alert("playin hand");
+      break;
+    default:
+      throw "handleCardClicked error: mode incorrect, " + mode;
+  }
+}

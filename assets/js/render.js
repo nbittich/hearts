@@ -110,10 +110,15 @@ export function renderNewHand(
   }
 }
 
-export function renderReceivedCards(cards) {
+export function renderReceivedCards(
+  cards,
+  onClick = (_cardElt, _clickedCard, _isSelected) => {
+    throw "not implemented";
+  },
+) {
   USERCARDS_DIV.innerHTML = "";
   for (const card of cards) {
-    renderCard(USERCARDS_DIV, card, true);
+    renderCard(USERCARDS_DIV, card, true, onClick);
   }
 }
 
@@ -127,8 +132,13 @@ export function renderCard(
     );
   },
 ) {
-  let cardComponent = document.createElement(clickable ? "a" : "span");
+  let cardComponent = document.createElement(clickable && card ? "a" : "span");
   cardComponent.classList = "kard";
+  if (!card) {
+    cardComponent.textContent = "🂠";
+    parentDiv.appendChild(cardComponent);
+    return;
+  }
   switch (card.type_card) {
     case "CLUB":
     case "SPADE":
@@ -144,9 +154,11 @@ export function renderCard(
   cardComponent.innerText = card.emoji;
   if (clickable) {
     cardComponent.onclick = (e) => {
+      e.preventDefault();
       let cardElt = e.currentTarget;
       let clickedCard = JSON.parse(cardElt.dataset.card);
       let isSelected = cardElt.dataset.selected === "true";
+
       onClick(cardElt, clickedCard, isSelected);
     };
     cardComponent.href = "#";
@@ -155,6 +167,26 @@ export function renderCard(
     cardComponent.dataset.card = JSON.stringify(card);
   }
   parentDiv.appendChild(cardComponent);
+}
+
+export function renderCardSubmitButton(
+  mode,
+  renderCondition = false,
+  onClick = (_) => { },
+) {
+  renderState(mode, (stateDiv) => {
+    if (renderCondition) {
+      let divButton = document.createElement("div");
+      divButton.classList = "d-block";
+
+      let button = document.createElement("button");
+      button.href = "#";
+      button.onclick = onClick;
+      button.textContent = "Submit";
+      divButton.appendChild(button);
+      stateDiv.appendChild(divButton);
+    }
+  });
 }
 
 export function findPlayerDivById(playerId) {
