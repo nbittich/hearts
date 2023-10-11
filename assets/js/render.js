@@ -93,6 +93,16 @@ export function renderNextPlayerToReplaceCards(mode, currentPlayerId) {
   }
   renderPlayer(currentPlayerIdDiv, true, currentPlayerId);
 }
+export function renderNextPlayer(mode, currentPlayerId) {
+  if (mode != PLAYING_HAND) {
+    throw `invalid call to renderNextPlayer: ${mode}`;
+  }
+  let currentPlayerIdDiv = findPlayerDivById(currentPlayerId);
+  if (!currentPlayerIdDiv) {
+    throw `could not find playerDiv for currentPlayerId ${currentPlayerId}`;
+  }
+  renderPlayer(currentPlayerIdDiv, true, currentPlayerId);
+}
 export function renderNewHand(
   mode,
   playerIds,
@@ -109,7 +119,14 @@ export function renderNewHand(
     renderPlayer(div, currentPlayerId === id, id, 0, totalScore);
   }
 }
-
+export function renderStack(mode, stack) {
+  STACK_DIV.innerHTML = "";
+  renderState(mode, (_) => {
+    for (const card of stack) {
+      renderCard(STACK_DIV, card, false);
+    }
+  });
+}
 export function renderReceivedCards(
   cards,
   onClick = (_cardElt, _clickedCard, _isSelected) => {

@@ -19,17 +19,20 @@ import {
   renderReceivedCards,
   renderNextPlayerToReplaceCards,
   renderCardSubmitButton,
+  renderStack,
+  renderNextPlayer,
 } from "./render.js";
 import {
   sendGetCards,
   sendGetCurrentState,
+  sendPlayCard,
   sendReplaceCards,
 } from "./messages.js";
 
 let mode = WAITING_FOR_MESSAGE;
 let playerIds = [];
 let currentPlayerId = null;
-let cardToPlay = null;
+let currentPlayerCards = null;
 let cardsToExchange = null;
 renderState(mode);
 
@@ -72,7 +75,8 @@ WEBSOCKET.onmessage = (evt) => {
         sendGetCards();
       }
     } else if (roomMessage.msgType.receiveCards) {
-      renderReceivedCards(roomMessage.msgType.receiveCards, handleCardClicked);
+      currentPlayerCards = roomMessage.msgType.receiveCards;
+      renderReceivedCards(currentPlayerCards, handleCardClicked);
     } else if (roomMessage.msgType.nextPlayerToReplaceCards) {
       mode = EXCHANGE_CARDS;
       let { current_player_id } = roomMessage.msgType.nextPlayerToReplaceCards;
@@ -81,8 +85,18 @@ WEBSOCKET.onmessage = (evt) => {
       renderNextPlayerToReplaceCards(mode, currentPlayerId);
     } else if (roomMessage.msgType.nextPlayerToPlay) {
       mode = PLAYING_HAND;
+      let { current_cards, current_player_id, stack } =
+        roomMessage.msgType.nextPlayerToPlay;
+      currentPlayerId = current_player_id;
+      if (current_cards) {
+        currentPlayerCards = current_cards;
+        renderReceivedCards(current_cards, handleCardClicked);
+      }
+      renderStack(mode, stack);
+      renderNextPlayer(mode, currentPlayerId);
     } else if (roomMessage.msgType.updateStackAndScore) {
-      // todo set mode
+      let { stack, player_scores } = roomMessage.msgType.updateStackAndScore;
+      renderStack(mode, stack);
     } else if (roomMessage.msgType.state) {
       // todo set mode
     }
@@ -123,7 +137,8 @@ function handleCardClicked(cardElt, clickedCard, isSelected) {
 
       break;
     case PLAYING_HAND:
-      alert("playin hand");
+      sendPlayCard(clickedCard);
+      sendGetCards();
       break;
     default:
       throw "handleCardClicked error: mode incorrect, " + mode;
