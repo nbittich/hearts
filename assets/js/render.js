@@ -16,7 +16,7 @@ import {
 } from "./constants.js";
 import { sendJoin, sendJoinBot } from "./messages.js";
 
-export function renderState(mode, customizeStateDiv = (_stateDiv) => {}) {
+export function renderState(mode, customizeStateDiv = (_stateDiv) => { }) {
   // reset state
   STATE_DIV.innerHTML = "";
 
@@ -39,6 +39,7 @@ export function renderState(mode, customizeStateDiv = (_stateDiv) => {}) {
       break;
     case END:
       message = "End game."; // todo print the winner
+      break;
     default:
       throw `unknown mode ${mode}`;
   }
@@ -214,7 +215,7 @@ export function renderCard(
 export function renderCardSubmitButton(
   mode,
   renderCondition = false,
-  onClick = (_) => {},
+  onClick = (_) => { },
 ) {
   renderState(mode, (stateDiv) => {
     if (renderCondition) {
