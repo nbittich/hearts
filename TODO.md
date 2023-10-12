@@ -1,8 +1,1 @@
-
-- play_bot when it's bot's turn
-- add endpoint to add bot to room
-- spawn a bot task foreach bot
-- websocket javascript 
-- handle disconnected by sending a message to room
-- todo make sure the room creator is the one who send the msg
-
+- todo bug when doing 26
