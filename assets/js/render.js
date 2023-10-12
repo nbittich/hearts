@@ -16,7 +16,7 @@ import {
 } from "./constants.js";
 import { sendJoin, sendJoinBot } from "./messages.js";
 
-export function renderState(mode, customizeStateDiv = (_stateDiv) => { }) {
+export function renderState(mode, customizeStateDiv = (_stateDiv) => {}) {
   // reset state
   STATE_DIV.innerHTML = "";
 
@@ -52,6 +52,7 @@ export function renderState(mode, customizeStateDiv = (_stateDiv) => { }) {
     STATE_DIV.classList.remove("d-none");
   } else {
     STATE_DIV.classList.add("d-none");
+    STACK_DIV.classList.remove("d-none");
   }
   customizeStateDiv(STATE_DIV);
 }
@@ -116,13 +117,7 @@ export function renderScores(current_scores, player_scores) {
   renderScoresBySpanClass(player_scores, ".playerScore");
 }
 
-export function renderNewHand(
-  mode,
-  playerIds,
-  currentScores,
-  playerScores,
-  currentPlayerId,
-) {
+export function renderNewHand(mode, playerIds, playerScores, currentPlayerId) {
   if (mode != NEW_HAND) {
     throw `invalid call to renderNewHand: ${mode}`;
   }
@@ -131,7 +126,12 @@ export function renderNewHand(
   for (const { id, div } of orderedPlayerDivs) {
     renderPlayer(div, currentPlayerId === id, id);
   }
-  renderScores(currentScores, playerScores);
+  renderScores(
+    playerScores.map((p) => {
+      return { player_id: p.player_id, score: 0 };
+    }),
+    playerScores,
+  );
 }
 export function renderStack(mode, stack) {
   STACK_DIV.innerHTML = "";
@@ -203,7 +203,7 @@ export function renderCard(
 export function renderCardSubmitButton(
   mode,
   renderCondition = false,
-  onClick = (_) => { },
+  onClick = (_) => {},
 ) {
   renderState(mode, (stateDiv) => {
     if (renderCondition) {

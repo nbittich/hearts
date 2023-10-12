@@ -50,7 +50,6 @@ pub enum RoomMessageType {
         current_player_id: UserId,
         current_hand: u8,
         player_scores: [PlayerState; PLAYER_NUMBER],
-        current_scores: Option<[PlayerState; PLAYER_NUMBER]>,
         hands: u8,
     },
     NextPlayerToReplaceCards {
@@ -229,7 +228,6 @@ async fn send_message_after_played(
 
                     let player_ids_in_order = game.player_ids_in_order();
                     let player_scores = game.player_score_by_id();
-                    let current_scores = game.current_score_by_id();
 
                     sender.send(RoomMessage {
                         from_user_id: None,
@@ -237,7 +235,6 @@ async fn send_message_after_played(
                         msg_type: RoomMessageType::NewHand {
                             player_ids_in_order,
                             current_player_id,
-                            current_scores: Some(current_scores),
                             player_scores,
                             hands: game.hands,
                             current_hand: game.current_hand,
@@ -485,14 +482,12 @@ pub async fn room_task(
 
                             // notify game is about to start
                             let player_scores = game.player_score_by_id();
-                            let current_scores = game.current_score_by_id();
                             sender.send(RoomMessage {
                                 from_user_id: None,
                                 to_user_id: None,
                                 msg_type: RoomMessageType::NewHand {
                                     player_ids_in_order,
                                     player_scores,
-                                    current_scores: Some(current_scores),
                                     current_player_id,
                                     current_hand: game.current_hand,
                                     hands: game.hands,
@@ -595,9 +590,9 @@ pub async fn room_task(
                         } = &game.state
                         {
                             game.play_bot()?;
-                            let player_scores = game.player_score_by_id();
                             if send_message_after_played(game, &sender).await? {
                                 // game is done, update state
+                                let player_scores = game.player_score_by_id();
                                 room_guard.state = RoomState::Done(*players, *game);
                                 sender.send(RoomMessage {
                                     from_user_id: None,

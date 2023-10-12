@@ -11,6 +11,7 @@ import {
   PLAYING_HAND,
   WEBSOCKET,
   CURRENT_USER_ID,
+  END,
 } from "./constants.js";
 import {
   renderState,
@@ -67,21 +68,11 @@ WEBSOCKET.onmessage = (evt) => {
       renderWaitingForPlayers(mode, playerIds);
     } else if (roomMessage.msgType.newHand) {
       mode = NEW_HAND;
-      let {
-        player_ids_in_order,
-        player_scores,
-        current_scores,
-        current_player_id,
-      } = roomMessage.msgType.newHand;
+      let { player_ids_in_order, player_scores, current_player_id } =
+        roomMessage.msgType.newHand;
       playerIds = player_ids_in_order;
       currentPlayerId = current_player_id;
-      renderNewHand(
-        mode,
-        playerIds,
-        current_scores,
-        player_scores,
-        currentPlayerId,
-      );
+      renderNewHand(mode, playerIds, player_scores, currentPlayerId);
       if (playerIds.includes(CURRENT_USER_ID)) {
         sendGetCards();
       }
@@ -112,6 +103,10 @@ WEBSOCKET.onmessage = (evt) => {
       renderScores(current_scores, player_scores);
     } else if (roomMessage.msgType.state) {
       // todo set mode
+    } else if (roomMessage.msgType.end) {
+      //todo
+      mode = END;
+      alert("game over");
     }
   }
   //renderState(mode);

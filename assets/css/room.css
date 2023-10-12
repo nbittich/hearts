@@ -71,6 +71,7 @@
   right: 50%;
   /* top: 50%; */
   bottom: 50%;
+  font-size: 2em;
 }
 
 .kard {
@@ -115,6 +116,7 @@
   width: 100%;
   flex-wrap: wrap;
   background-color: white;
+  font-size: 2em;
 }
 .playerTop {
   top: 0;
@@ -181,7 +183,10 @@
 }
 
 @media only screen and (min-width: 60em) {
-  .kard {
-    font-size: 2em;
+  .playerBottomCards {
+    font-size: 3em;
+  }
+  .stack {
+    font-size: 3em;
   }
 }
