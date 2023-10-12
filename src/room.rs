@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashSet,
     error::Error,
     fmt::{Debug, Display},
@@ -33,6 +34,8 @@ pub struct PlayerCard {
     pub emoji: CardEmoji,
     pub position_in_deck: PositionInDeck,
 }
+
+pub type StaticStr = Cow<'static, str>;
 
 #[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -73,6 +76,7 @@ pub enum RoomMessageType {
     PlayBot,
     GetCurrentState,
     State {
+        mode: StaticStr,
         player_scores: [PlayerState; PLAYER_NUMBER],
         current_scores: [PlayerState; PLAYER_NUMBER],
         current_cards: Box<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
@@ -375,15 +379,18 @@ async fn send_current_state(
                 .get_player_cards(from_user_id)
                 .map(convert_card_to_player_card);
             let stack = match &game.state {
-                GameState::PlayingHand {
-                    stack,
-                    current_scores: _,
+                GameState::PlayingHand { ref stack, .. }
+                | GameState::ComputeScore { ref stack, .. } => {
+                    convert_stack_to_card_player_card(stack)
                 }
-                | GameState::ComputeScore {
-                    stack,
-                    current_scores: _,
-                } => convert_stack_to_card_player_card(stack),
                 _ => [None; PLAYER_NUMBER],
+            };
+            let state = match &game.state {
+                GameState::ExchangeCards { .. } => "EXCHANGE_CARDS",
+                GameState::PlayingHand { .. }
+                | GameState::EndHand
+                | GameState::ComputeScore { .. } => "PLAYING_HAND",
+                GameState::End => "END",
             };
 
             let current_scores = game.current_score_by_id();
@@ -392,6 +399,7 @@ async fn send_current_state(
                 from_user_id: None,
                 to_user_id: Some(from_user_id),
                 msg_type: RoomMessageType::State {
+                    mode: Cow::Borrowed(state),
                     player_scores,
                     current_scores,
                     current_cards: Box::new(cards),

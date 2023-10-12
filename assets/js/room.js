@@ -23,6 +23,8 @@ import {
   renderStack,
   renderNextPlayer,
   renderScores,
+  resetCurrentScores,
+  renderPlayers,
 } from "./render.js";
 import {
   sendGetCards,
@@ -83,7 +85,7 @@ WEBSOCKET.onmessage = (evt) => {
       mode = EXCHANGE_CARDS;
       let { current_player_id } = roomMessage.msgType.nextPlayerToReplaceCards;
       currentPlayerId = current_player_id;
-
+      resetCurrentScores(); // todo maybe not needed
       renderNextPlayerToReplaceCards(mode, currentPlayerId);
     } else if (roomMessage.msgType.nextPlayerToPlay) {
       mode = PLAYING_HAND;
@@ -103,13 +105,42 @@ WEBSOCKET.onmessage = (evt) => {
       renderScores(current_scores, player_scores);
     } else if (roomMessage.msgType.state) {
       // todo set mode
+      let state = roomMessage.msgType.state;
+      mode = state.mode;
+      currentPlayerId = state.current_player_id;
+      currentPlayerCards = state.current_cards;
+
+      renderPlayers(state.player_scores.map((ps) => ps.player_id));
+
+      switch (mode) {
+        case PLAYING_HAND:
+          renderReceivedCards(currentPlayerCards, handleCardClicked);
+          renderStack(mode, state.current_stack);
+          renderScores(state.current_scores, state.player_scores);
+          renderNextPlayer(mode, currentPlayerId);
+
+          break;
+        case EXCHANGE_CARDS:
+          renderReceivedCards(currentPlayerCards, handleCardClicked);
+          renderNextPlayerToReplaceCards(mode, currentPlayerId);
+          renderScores(state.current_scores, state.player_scores);
+          resetCurrentScores(); // todo maybe not needed
+
+          break;
+        case END:
+          renderScores(state.current_scores, state.player_scores);
+          resetCurrentScores(); // todo maybe not needed
+          renderState(mode);
+          break;
+        default:
+          throw `state error: unknown mode ${mode}`;
+      }
     } else if (roomMessage.msgType.end) {
-      //todo
       mode = END;
-      alert("game over");
+      resetCurrentScores();
+      renderState(mode);
     }
   }
-  //renderState(mode);
 };
 
 function handleCardClicked(cardElt, clickedCard, isSelected) {

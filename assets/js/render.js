@@ -78,6 +78,9 @@ export function renderWaitingForPlayers(mode, seats) {
     divButton.appendChild(addBotButton);
     stateDiv.appendChild(divButton);
   });
+  renderPlayers(seats);
+}
+export function renderPlayers(seats) {
   let orderedPlayerDivs = getOrderedPlayerDivs(seats);
   for (const { id, div } of orderedPlayerDivs) {
     renderPlayer(div, false, id);
@@ -115,6 +118,14 @@ export function renderScores(current_scores, player_scores) {
   };
   renderScoresBySpanClass(current_scores, ".currentScore");
   renderScoresBySpanClass(player_scores, ".playerScore");
+}
+
+export function resetCurrentScores() {
+  const ordered = getOrderedPlayerDivs(null);
+  for (const { div } of ordered) {
+    let scoreSpan = div.querySelector(".currentScore");
+    scoreSpan.innerText = "0";
+  }
 }
 
 export function renderNewHand(mode, playerIds, playerScores, currentPlayerId) {
@@ -283,7 +294,7 @@ export function getOrderedPlayerDivs(players) {
       div: PLAYER_RIGHT_DIV,
     },
   ];
-  if (!players.length || players.every((p) => !p)) {
+  if (!players?.length || players.every((p) => !p)) {
     return ordered;
   }
   if (players.includes(CURRENT_USER_ID)) {
