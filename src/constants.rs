@@ -12,6 +12,7 @@ pub static COOKIE: &str = "HeartsCookie";
 pub static USER_ID: &str = "X_USER_ID";
 pub static ABRITRATRY_CHANNEL_SIZE: usize = 128;
 pub static DEFAULT_HANDS: u8 = 3;
+pub static TIMEOUT_SECS: usize = 2;
 
 #[cfg(test)]
 mod test {}

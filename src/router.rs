@@ -1,5 +1,5 @@
 use crate::{
-    constants::{COOKIE as COOKIE_NAME, USER_ID},
+    constants::{COOKIE as COOKIE_NAME, TIMEOUT_SECS, USER_ID},
     room::{Room, Rooms},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
     user::{User, Users},
@@ -28,8 +28,6 @@ use tower_http::{
 use tracing::Level;
 use tracing_subscriber::{fmt::time::OffsetTime, EnvFilter, FmtSubscriber};
 use uuid::Uuid;
-
-const TIMEOUT_SECS: usize = 10;
 
 pub type WsEndpoint = Cow<'static, str>;
 

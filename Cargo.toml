@@ -17,13 +17,13 @@ futures-util = { version = "0.3.28", features = ["sink", "std"] }
 lib-hearts = { git = "ssh://git@github.com/nbittich/lib-hearts.git" }
 minijinja = "1.0.8"
 rand = "0.8.5"
-serde = { version = "1.0.188", features = ["rc"] }
-serde_derive = "1.0.188"
+serde = { version = "1.0.189", features = ["rc"] }
+serde_derive = "1.0.189"
 serde_json = "1.0.107"
-tokio = { version = "1.32.0", features = ["full"] }
+tokio = { version = "1.33.0", features = ["full"] }
 tower = "0.4.13"
 tower-http = { version = "0.4.4", features = ["fs", "trace", "redirect"] }
-tracing = "0.1.37"
+tracing = "0.1.39"
 tracing-subscriber = { version = "0.3.17", features = [
   "env-filter",
   "time",
@@ -31,7 +31,7 @@ tracing-subscriber = { version = "0.3.17", features = [
 ] }
 typenum = "1.17.0"
 uuid = { version = "1.4.1", features = ["v4", "serde"] }
-time = { version = "0.3.29", features = [
+time = { version = "0.3.30", features = [
   "formatting",
   "local-offset",
   "macros",

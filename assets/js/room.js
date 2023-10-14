@@ -103,6 +103,8 @@ WEBSOCKET.onmessage = (evt) => {
         roomMessage.msgType.updateStackAndScore;
       renderStack(mode, stack);
       renderScores(current_scores, player_scores);
+    } else if (roomMessage.msgType === "timedOut") {
+      sendGetCurrentState();
     } else if (roomMessage.msgType.state) {
       // todo set mode
       let state = roomMessage.msgType.state;
