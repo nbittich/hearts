@@ -28,6 +28,9 @@ use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U4>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
+
+const BOT_SLEEP_SECS: u64 = 1;
+
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
     pub type_card: TypeCard,
@@ -284,7 +287,7 @@ async fn bot_task(
             | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
                 if current_player_id == bot_id =>
             {
-                tokio::time::sleep(Duration::from_secs(1)).await; // give some delay
+                tokio::time::sleep(Duration::from_secs(BOT_SLEEP_SECS)).await; // give some delay
                 sender.send(RoomMessage {
                     from_user_id: Some(bot_id),
                     to_user_id: None,
@@ -297,7 +300,7 @@ async fn bot_task(
                 stack,
                 ..
             } if current_player_id == bot_id => {
-                tokio::time::sleep(Duration::from_secs(1)).await; // give some delay
+                tokio::time::sleep(Duration::from_secs(BOT_SLEEP_SECS)).await; // give some delay
 
                 sender.send(RoomMessage {
                     from_user_id: Some(bot_id),

@@ -1,0 +1,42 @@
+.timer {
+  background: linear-gradient(0.25turn, skyBlue 50%, #eee 50%);
+  border-radius: 100%;
+  height: calc(var(--size) * 1px);
+  width: calc(var(--size) * 1px);
+  position: relative;
+  animation: time calc(var(--duration) * 1s) steps(1000, start) infinite;
+  /* mask: radial-gradient(transparent 50%, #000 50%); */
+}
+.mask {
+  border-radius: 100% 0 0 100% / 50% 0 0 50%;
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 50%;
+  animation: mask calc(var(--duration) * 1s) steps(500, start) infinite;
+  transform-origin: 100% 50%;
+}
+@keyframes time {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+@keyframes mask {
+  0% {
+    background: #eee;
+    transform: rotate(0deg);
+  }
+  50% {
+    background: #eee;
+    transform: rotate(-180deg);
+  }
+  50.01% {
+    background: skyBlue;
+    transform: rotate(0deg);
+  }
+  100% {
+    background: skyBlue;
+    transform: rotate(-180deg);
+  }
+}

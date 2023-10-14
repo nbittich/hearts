@@ -29,6 +29,8 @@ use tracing::Level;
 use tracing_subscriber::{fmt::time::OffsetTime, EnvFilter, FmtSubscriber};
 use uuid::Uuid;
 
+const TIMEOUT_SECS: usize = 10;
+
 pub type WsEndpoint = Cow<'static, str>;
 
 #[derive(Clone)]
@@ -161,6 +163,7 @@ async fn get_room(
                     room => *room,
                     ws_endpoint => ws_endpoint,
                     user => user,
+                    timeout => TIMEOUT_SECS
                 ),
             )
             .map_err(service_error)?;

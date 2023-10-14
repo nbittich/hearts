@@ -1,6 +1,24 @@
 {% extends "base.html" %} {% block customCss %}
 <link href="/assets/css/room.css" rel="stylesheet" />
 {% endblock %} {% block title %}{{ super() }}{% endblock %} {% block body %}
+
+<!-- macro for player divs -->
+{% macro playerDiv(id) %}
+<div id="{{id}}" class="{{id}} child">
+  <div class="flex flex-column">
+    <div class="score">
+      <span class="currentScore">-</span>
+      <a href="#" class="seat emptySeat" title="playerTop">👤</a>
+      <span class="playerScore">-</span>
+      <div class="timer" style="--duration: {{timeout}}; --size: 20">
+        <div class="mask"></div>
+      </div>
+    </div>
+    <p class="playerName p-0">-</p>
+  </div>
+</div>
+{% endmacro %}
+
 <p>Room {{room.id}}</p>
 <hr />
 <div
@@ -14,66 +32,21 @@
       <div id="roomTable" class="roomTable">
         <div class="child gameState d-none"><span></span></div>
         <div id="stack" class="stack child"></div>
-        <div id="playerTop" class="playerTop child">
-          <div class="flex flex-column">
-            <div class="score">
-              <span class="currentScore">-</span>
-              <a href="#" class="seat emptySeat" title="playerTop">👤</a>
-              <span class="playerScore">-</span>
-            </div>
-            <p class="playerName p-0">-</p>
-          </div>
-        </div>
-        <div id="playerLeft" class="playerLeft child">
-          <div class="flex flex-column">
-            <div class="score">
-              <span class="currentScore">-</span>
-              <a href="#" class="seat emptySeat" title="playerLeft">👤</a>
-              <span class="playerScore">-</span>
-            </div>
-            <p class="playerName p-0">-</p>
-          </div>
-        </div>
-        <div id="playerBottom" class="playerBottom child">
-          <div class="flex flex-column">
-            <p class="playerName p-0">-</p>
-            <div class="score">
-              <span class="currentScore">-</span>
-              <a href="#" class="seat emptySeat" title="playerBottom">👤</a>
-              <span class="playerScore">-</span>
-            </div>
-          </div>
-        </div>
-        <div id="playerBottomCards" class="playerBottomCards child">
-          <!-- <a href="#" class="kard">🃑 </a> -->
-          <!-- <a href="#" class="kard">🃑 </a> -->
-          <!-- <a href="#" class="kard">🂢 </a> -->
-          <!-- <a href="#" class="kard">🂶 </a> -->
-          <!-- <a href="#" class="kard">🂱 </a> -->
-          <!-- <a href="#" class="kard">🃑 </a> -->
-          <!-- <a href="#" class="kard">🂢 </a> -->
-          <!-- <a href="#" class="kard">🂶 </a> -->
-          <!-- <a href="#" class="kard">🂱 </a> -->
-          <!-- <a href="#" class="kard">🃑 </a> -->
-          <!-- <a href="#" class="kard">🂢 </a> -->
-          <!-- <a href="#" class="kard">🂶 </a> -->
-          <!-- <a href="#" class="kard">🂱 </a> -->
-        </div>
-        <div id="playerRight" class="playerRight child">
-          <div class="flex flex-column">
-            <div class="score">
-              <span class="currentScore">-</span>
-              <a href="#" class="seat emptySeat" title="playerRight">👤</a>
-              <span class="playerScore">-</span>
-            </div>
-            <p class="playerName p-0">-</p>
-          </div>
-        </div>
+
+        <!-- player top -->
+        {{playerDiv("playerTop")}}
+        <!-- player left -->
+        {{playerDiv("playerLeft")}}
+        <!-- player bottm -->
+        {{playerDiv("playerBottom")}}
+        <div id="playerBottomCards" class="playerBottomCards child"></div>
+        <!-- player right -->
+
+        {{playerDiv("playerRight")}}
       </div>
     </div>
   </div>
   {% endblock %} {% block javascript %}
   <script src="/assets/js/room.js" type="module"></script>
-  <!-- <script src="/assets/js/app.js"> </script> COMMENTED FOR NOW -->
   {%endblock %}
 </div>
