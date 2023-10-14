@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::{
-    constants::{ABRITRATRY_CHANNEL_SIZE, DEFAULT_HANDS, TIMEOUT_SECS},
+    constants::{ABRITRATRY_CHANNEL_SIZE, BOT_SLEEP_SECS, DEFAULT_HANDS, TIMEOUT_SECS},
     user::{User, UserId, Users},
 };
 use arraystring::ArrayString;
@@ -29,8 +29,6 @@ use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U4>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
 pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
-
-const BOT_SLEEP_SECS: u64 = 1;
 
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
@@ -209,13 +207,13 @@ async fn timeout_bot(
                     return;
                 }
                 msg => {
-                    tracing::debug!("invalid message: {msg:?}");
                     timeout_act = sub_t(timeout_act, now.elapsed());
+                    tracing::debug!("invalid message: {msg:?}");
                 }
             },
             Ok(Err(e)) => {
-                tracing::debug!("timeout: {e}");
                 timeout_act = sub_t(timeout_act, now.elapsed());
+                tracing::debug!("timeout: {e}");
             }
             Err(t) => {
                 let msg = bot_msg();

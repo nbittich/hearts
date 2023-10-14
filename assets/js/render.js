@@ -252,6 +252,7 @@ export function renderPlayer(playerDiv, currentPlayer = false, playerId) {
     playerDiv.dataset.id = playerId;
   }
   let seatDiv = playerDiv.querySelector(".seat");
+  let timerDiv = playerDiv.querySelector(".timer");
   seatDiv.classList = "seat";
   if (!playerId) {
     seatDiv.classList.add("emptySeat");
@@ -268,10 +269,13 @@ export function renderPlayer(playerDiv, currentPlayer = false, playerId) {
     if (previousPlayerDiv) {
       previousPlayerDiv.dataset.currentPlayer = false;
       let previousSeatDiv = previousPlayerDiv.querySelector(".seat");
+      let previousTimerDiv = previousPlayerDiv.querySelector(".timer");
       previousSeatDiv.classList.remove("currentPlayer");
+      previousTimerDiv.classList.add("d-none");
     }
     playerDiv.dataset.currentPlayer = true;
     seatDiv.classList.add("currentPlayer");
+    timerDiv.classList.remove("d-none");
   }
 }
 

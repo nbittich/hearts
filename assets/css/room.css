@@ -121,12 +121,12 @@
   font-size: 2em;
 }
 .playerTop {
-  top: -3px;
+  top: 3px;
   width: 100%;
 }
 
 .playerBottom {
-  bottom: -3px;
+  bottom: 3px;
   width: 100%;
 }
 
@@ -136,15 +136,14 @@
 }
 
 .playerRight {
-  right: -25px;
+  right: -15px;
   /* top: 50%; */
   bottom: 50%;
-  /* margin-right: 5px; */
+  margin-right: 5px;
   display: flex;
   flex-direction: column;
-}
-.playerRight {
   transform: rotate(90deg);
+  margin: 0;
 }
 .playerRight .score .currentScore,
 .playerRight .score .playerScore {
@@ -163,23 +162,20 @@
 .score {
   display: inline-flex;
 }
-.playerLeft {
-  transform: rotate(-90deg);
-}
-
 .playerLeft .score .currentScore,
 .playerLeft .score .playerScore {
   transform: rotate(90deg);
 }
 
 .playerLeft {
-  left: -25px;
+  left: -20px;
   /* top: 50%; */
   bottom: 50%;
-  /* margin-left: 5px; */
+  margin-left: 5px;
 
   display: flex;
   flex-direction: column;
+  transform: rotate(-90deg);
 }
 
 @media only screen and (min-width: 60em) {

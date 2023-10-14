@@ -5,16 +5,19 @@
 <!-- macro for player divs -->
 {% macro playerDiv(id) %}
 <div id="{{id}}" class="{{id}} child">
-  <div class="flex flex-column">
+  <div class="d-flex flex-column">
     <div class="score">
       <span class="currentScore">-</span>
-      <a href="#" class="seat emptySeat" title="playerTop">👤</a>
-      <span class="playerScore">-</span>
-      <div class="timer" style="--duration: {{timeout}}; --size: 20">
+      <div class="timer d-none" style="--duration: {{timeout}}; --size: 12">
         <div class="mask"></div>
       </div>
+      <a href="#" class="seat emptySeat" title="playerTop">👤</a>
+
+      <span class="playerScore">-</span>
     </div>
-    <p class="playerName p-0">-</p>
+    <div>
+      <p class="playerName p-0">-</p>
+    </div>
   </div>
 </div>
 {% endmacro %}
