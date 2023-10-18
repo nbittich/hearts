@@ -10,12 +10,12 @@ arraystring = { version = "0.3.0", features = ["serde-traits"] }
 async-session = "3.0.0"
 axum = { version = "0.6.20", features = ["ws", "headers"] }
 axum-extra = { version = "0.8.0", features = ["cookie"] }
-chrono = "0.4.31"
+chrono = { version = "0.4.31", features = ["serde"] }
 futures = "0.3.28"
 futures-util = { version = "0.3.28", features = ["sink", "std"] }
 #lib-hearts = "0.1.28"
 lib-hearts = { git = "ssh://git@github.com/nbittich/lib-hearts.git" }
-minijinja = "1.0.8"
+minijinja = "1.0.9"
 rand = "0.8.5"
 serde = { version = "1.0.189", features = ["rc"] }
 serde_derive = "1.0.189"
@@ -30,7 +30,7 @@ tracing-subscriber = { version = "0.3.17", features = [
   "local-time",
 ] }
 typenum = "1.17.0"
-uuid = { version = "1.4.1", features = ["v4", "serde"] }
+uuid = { version = "1.5.0", features = ["v4", "serde"] }
 time = { version = "0.3.30", features = [
   "formatting",
   "local-offset",

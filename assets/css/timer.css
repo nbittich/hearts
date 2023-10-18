@@ -6,6 +6,7 @@
   position: absolute;
   animation: time calc(var(--duration) * 1s) steps(1000, start);
   /* mask: radial-gradient(transparent 50%, #000 50%); */
+  top: 15px;
 }
 .mask {
   border-radius: 100% 0 0 100% / 50% 0 0 50%;

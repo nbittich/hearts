@@ -57,14 +57,17 @@ pub enum RoomMessageType {
         current_hand: u8,
         player_scores: [PlayerState; PLAYER_NUMBER],
         hands: u8,
+        uuid: Uuid,
     },
     NextPlayerToReplaceCards {
         current_player_id: UserId,
+        uuid: Uuid,
     },
     NextPlayerToPlay {
         current_player_id: UserId,
         current_cards: Option<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
+        uuid: Uuid,
     },
     UpdateStackAndScore {
         stack: [Option<PlayerCard>; PLAYER_NUMBER],
@@ -176,10 +179,12 @@ impl Room {
 
 async fn timeout_bot(
     player_id: Uuid,
+    msg_uuid: Uuid,
     mut receiver: Receiver<RoomMessage>,
     sender: Sender<RoomMessage>,
     bot_msg: impl Fn() -> RoomMessage,
 ) {
+    tracing::info!("spawned timeout for {player_id}");
     let now = Instant::now();
     let mut timeout_act = Duration::from_secs(TIMEOUT_SECS as u64);
 
@@ -189,16 +194,27 @@ async fn timeout_bot(
     };
     loop {
         tracing::debug!("entering timeout loop with a duration of {timeout_act:?}");
+
+        if timeout_act == Duration::ZERO {
+            tracing::info!("BUG: timed out");
+        }
         match timeout(timeout_act, receiver.recv()).await {
             Ok(Ok(rm)) => match rm.msg_type {
                 RoomMessageType::NewHand {
-                    current_player_id, ..
+                    current_player_id,
+                    uuid,
+                    ..
                 }
-                | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
+                | RoomMessageType::NextPlayerToReplaceCards {
+                    current_player_id,
+                    uuid,
+                }
                 | RoomMessageType::NextPlayerToPlay {
-                    current_player_id, ..
-                } if current_player_id != player_id => {
-                    tracing::info!("it's all good mate. {current_player_id}");
+                    current_player_id,
+                    uuid,
+                    ..
+                } if msg_uuid != uuid => {
+                    tracing::debug!("it's all good mate. {current_player_id}");
                     break;
                 }
                 RoomMessageType::End { .. } => {
@@ -239,12 +255,10 @@ async fn send_message_after_played(
     game: &mut Game,
     sender: &Sender<RoomMessage>,
 ) -> Result<bool, Box<dyn Error + Send + Sync>> {
-    // todo we may need to filter on user that are not bot
-    let timeout_sender = sender.clone();
-    let timeout_receiver = timeout_sender.subscribe();
     let Some(current_player_id) = game.current_player_id() else {
         unreachable!()
     };
+    let uuid = Uuid::new_v4();
 
     match &mut game.state {
         GameState::PlayingHand { stack, .. } => {
@@ -254,20 +268,34 @@ async fn send_message_after_played(
                 msg_type: RoomMessageType::NextPlayerToPlay {
                     current_player_id,
                     current_cards: None,
+                    uuid,
                     stack: convert_stack_to_card_player_card(stack),
                 },
             })?;
-            tracing::info!("LINE 260 => {current_player_id}");
-            tokio::spawn(async move {
-                timeout_bot(current_player_id, timeout_receiver, timeout_sender, || {
-                    RoomMessage {
-                        from_user_id: Some(current_player_id),
-                        to_user_id: None,
-                        msg_type: RoomMessageType::PlayBot,
-                    }
-                })
-                .await
-            });
+            tracing::debug!("LINE 260 => {current_player_id}");
+            if game
+                .players
+                .iter()
+                .any(|p| !p.is_bot() && p.get_id() == current_player_id)
+            {
+                // todo we may need to filter on user that are not bot
+                let timeout_sender = sender.clone();
+                let timeout_receiver = timeout_sender.subscribe();
+                tokio::spawn(async move {
+                    timeout_bot(
+                        current_player_id,
+                        uuid,
+                        timeout_receiver,
+                        timeout_sender,
+                        || RoomMessage {
+                            from_user_id: Some(current_player_id),
+                            to_user_id: None,
+                            msg_type: RoomMessageType::PlayBot,
+                        },
+                    )
+                    .await
+                });
+            }
         }
         GameState::ComputeScore { ref stack, .. } => {
             let stack = *stack;
@@ -298,22 +326,36 @@ async fn send_message_after_played(
                         to_user_id: None,
                         msg_type: RoomMessageType::NextPlayerToPlay {
                             current_player_id,
+                            uuid,
                             current_cards: None,
                             stack: convert_stack_to_card_player_card(stack),
                         },
                     })?;
 
-                    tracing::info!("LINE 306 => {current_player_id}");
-                    tokio::spawn(async move {
-                        timeout_bot(current_player_id, timeout_receiver, timeout_sender, || {
-                            RoomMessage {
-                                from_user_id: Some(current_player_id),
-                                to_user_id: None,
-                                msg_type: RoomMessageType::PlayBot,
-                            }
-                        })
-                        .await
-                    });
+                    tracing::debug!("LINE 306 => {current_player_id}");
+                    if game
+                        .players
+                        .iter()
+                        .any(|p| !p.is_bot() && p.get_id() == current_player_id)
+                    {
+                        // todo we may need to filter on user that are not bot
+                        let timeout_sender = sender.clone();
+                        let timeout_receiver = timeout_sender.subscribe();
+                        tokio::spawn(async move {
+                            timeout_bot(
+                                current_player_id,
+                                uuid,
+                                timeout_receiver,
+                                timeout_sender,
+                                || RoomMessage {
+                                    from_user_id: Some(current_player_id),
+                                    to_user_id: None,
+                                    msg_type: RoomMessageType::PlayBot,
+                                },
+                            )
+                            .await
+                        });
+                    }
                 }
                 GameState::EndHand | GameState::ExchangeCards { commands: _ } => {
                     game.deal_cards()?;
@@ -328,21 +370,35 @@ async fn send_message_after_played(
                         msg_type: RoomMessageType::NewHand {
                             player_ids_in_order,
                             current_player_id,
+                            uuid,
                             player_scores,
                             hands: game.hands,
                             current_hand: game.current_hand,
                         },
                     })?;
-                    tokio::spawn(async move {
-                        timeout_bot(current_player_id, timeout_receiver, timeout_sender, || {
-                            RoomMessage {
-                                from_user_id: Some(current_player_id),
-                                to_user_id: None,
-                                msg_type: RoomMessageType::ReplaceCardsBot,
-                            }
-                        })
-                        .await
-                    });
+                    if game
+                        .players
+                        .iter()
+                        .any(|p| !p.is_bot() && p.get_id() == current_player_id)
+                    {
+                        // todo we may need to filter on user that are not bot
+                        let timeout_sender = sender.clone();
+                        let timeout_receiver = timeout_sender.subscribe();
+                        tokio::spawn(async move {
+                            timeout_bot(
+                                current_player_id,
+                                uuid,
+                                timeout_receiver,
+                                timeout_sender,
+                                || RoomMessage {
+                                    from_user_id: Some(current_player_id),
+                                    to_user_id: None,
+                                    msg_type: RoomMessageType::ReplaceCardsBot,
+                                },
+                            )
+                            .await
+                        });
+                    }
                 }
                 GameState::End => return Ok(true), // FIXME probably send something brazza
                 e => unreachable!("this cannot happen brazza {e:?}"),
@@ -380,9 +436,9 @@ async fn bot_task(
                 hands: _,
                 ..
             }
-            | RoomMessageType::NextPlayerToReplaceCards { current_player_id }
-                if current_player_id == bot_id =>
-            {
+            | RoomMessageType::NextPlayerToReplaceCards {
+                current_player_id, ..
+            } if current_player_id == bot_id => {
                 tokio::time::sleep(Duration::from_secs(BOT_SLEEP_SECS)).await; // give some delay
                 sender.send(RoomMessage {
                     from_user_id: Some(bot_id),
@@ -424,8 +480,8 @@ async fn send_message_after_cards_replaced(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     // todo we may need to filter on user that are not bot
     // be sure to check both cases where sender/receiver are used
-    let timeout_sender = sender.clone();
-    let timeout_receiver = timeout_sender.subscribe();
+
+    let uuid = Uuid::new_v4();
     match &game.state {
         GameState::ExchangeCards { commands: _ } => {
             // send change cards
@@ -434,19 +490,31 @@ async fn send_message_after_cards_replaced(
                 to_user_id: None,
                 msg_type: RoomMessageType::NextPlayerToReplaceCards {
                     current_player_id: next_player_id,
+                    uuid,
                 },
             })?;
-
-            tokio::spawn(async move {
-                timeout_bot(next_player_id, timeout_receiver, timeout_sender, || {
-                    RoomMessage {
-                        from_user_id: Some(next_player_id),
-                        to_user_id: None,
-                        msg_type: RoomMessageType::ReplaceCardsBot,
-                    }
-                })
-                .await
-            });
+            if game
+                .players
+                .iter()
+                .any(|p| !p.is_bot() && p.get_id() == next_player_id)
+            {
+                let timeout_sender = sender.clone();
+                let timeout_receiver = timeout_sender.subscribe();
+                tokio::spawn(async move {
+                    timeout_bot(
+                        next_player_id,
+                        uuid,
+                        timeout_receiver,
+                        timeout_sender,
+                        || RoomMessage {
+                            from_user_id: Some(next_player_id),
+                            to_user_id: None,
+                            msg_type: RoomMessageType::ReplaceCardsBot,
+                        },
+                    )
+                    .await
+                });
+            }
         }
         GameState::PlayingHand {
             stack,
@@ -463,22 +531,35 @@ async fn send_message_after_cards_replaced(
                     msg_type: RoomMessageType::NextPlayerToPlay {
                         current_player_id: next_player_id,
                         current_cards: Some(cards),
+                        uuid,
                         stack: convert_stack_to_card_player_card(stack),
                     },
                 })?;
             }
 
             tracing::debug!(" LINE 471 => {next_player_id}");
-            tokio::spawn(async move {
-                timeout_bot(next_player_id, timeout_receiver, timeout_sender, || {
-                    RoomMessage {
-                        from_user_id: Some(next_player_id),
-                        to_user_id: None,
-                        msg_type: RoomMessageType::PlayBot,
-                    }
-                })
-                .await
-            });
+            if game
+                .players
+                .iter()
+                .any(|p| !p.is_bot() && p.get_id() == next_player_id)
+            {
+                let timeout_sender = sender.clone();
+                let timeout_receiver = timeout_sender.subscribe();
+                tokio::spawn(async move {
+                    timeout_bot(
+                        next_player_id,
+                        uuid,
+                        timeout_receiver,
+                        timeout_sender,
+                        || RoomMessage {
+                            from_user_id: Some(next_player_id),
+                            to_user_id: None,
+                            msg_type: RoomMessageType::PlayBot,
+                        },
+                    )
+                    .await
+                });
+            }
         }
         any => {
             tracing::warn!("receiving weird event from game after exchange cards: {any:?}");
@@ -618,34 +699,42 @@ pub async fn room_task(
 
                             // notify game is about to start
                             let player_scores = game.player_score_by_id();
+                            let uuid = Uuid::new_v4();
                             sender.send(RoomMessage {
                                 from_user_id: None,
                                 to_user_id: None,
                                 msg_type: RoomMessageType::NewHand {
                                     player_ids_in_order,
                                     player_scores,
+                                    uuid,
                                     current_player_id,
                                     current_hand: game.current_hand,
                                     hands: game.hands,
                                 },
                             })?;
-                            // todo we may need to filter on user that are not bot
-                            let timeout_sender = sender.clone();
-                            let timeout_receiver = timeout_sender.subscribe();
-                            tokio::spawn(async move {
-                                timeout_bot(
-                                    current_player_id,
-                                    timeout_receiver,
-                                    timeout_sender,
-                                    || RoomMessage {
-                                        from_user_id: Some(current_player_id),
-                                        to_user_id: None,
-                                        msg_type: RoomMessageType::ReplaceCardsBot,
-                                    },
-                                )
-                                .await
-                            });
-                            // nordine marker
+                            if game
+                                .players
+                                .iter()
+                                .any(|p| !p.is_bot() && p.get_id() == current_player_id)
+                            {
+                                // todo we may need to filter on user that are not bot
+                                let timeout_sender = sender.clone();
+                                let timeout_receiver = timeout_sender.subscribe();
+                                tokio::spawn(async move {
+                                    timeout_bot(
+                                        current_player_id,
+                                        uuid,
+                                        timeout_receiver,
+                                        timeout_sender,
+                                        || RoomMessage {
+                                            from_user_id: Some(current_player_id),
+                                            to_user_id: None,
+                                            msg_type: RoomMessageType::ReplaceCardsBot,
+                                        },
+                                    )
+                                    .await
+                                });
+                            }
                         }
                     }
                     RoomState::Started(ref users, _) | RoomState::Done(ref users, _) => {
