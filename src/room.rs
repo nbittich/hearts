@@ -109,8 +109,9 @@ pub struct Room {
     #[serde(skip_serializing)]
     pub state: RoomState,
     pub viewers: HashSet<UserId>,
+    pub bots: [Option<UserId>; PLAYER_NUMBER],
     #[serde(skip_serializing)]
-    pub sender: Sender<RoomMessage>,
+    pub sender: Option<Sender<RoomMessage>>,
     #[serde(skip_serializing)]
     pub receiver: InactiveReceiver<RoomMessage>,
     #[serde(skip_serializing)]
@@ -157,9 +158,10 @@ impl Room {
         let id = Uuid::new_v4();
         let room = Room {
             id,
+            bots: [None; PLAYER_NUMBER],
             state: RoomState::WaitingForPlayers([None; PLAYER_NUMBER]),
             viewers: HashSet::with_capacity(5),
-            sender,
+            sender: Some(sender),
             receiver: inactive_receiver,
             task: None,
         };
@@ -432,19 +434,14 @@ async fn send_message_after_played(
 
 async fn bot_task(
     sender: Sender<RoomMessage>,
-    bot_id: Uuid,
+    bot_ids: [Option<UserId>; PLAYER_NUMBER],
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    tracing::info!("setup bot task {bot_id}...");
+    tracing::info!("setup bot task with bots {bot_ids:?}...");
+    if bot_ids.iter().all(Option::is_none) {
+        tracing::info!("nothing to do.. gonna sleep now");
+    }
     let mut receiver = sender.new_receiver();
 
-    tracing::info!("listening bot {bot_id}...");
-    sender
-        .broadcast_direct(RoomMessage {
-            from_user_id: Some(bot_id),
-            to_user_id: None,
-            msg_type: RoomMessageType::Join,
-        })
-        .await?;
     while let Ok(msg) = receiver.recv_direct().await {
         if msg.from_user_id.is_some() {
             continue; // only interested by system msg
@@ -460,10 +457,15 @@ async fn bot_task(
             }
             | RoomMessageType::NextPlayerToReplaceCards {
                 current_player_id, ..
-            } if current_player_id == bot_id => {
+            } if bot_ids
+                .iter()
+                .flatten()
+                .find(|b| *b == &current_player_id)
+                .is_some() =>
+            {
                 sender
                     .broadcast_direct(RoomMessage {
-                        from_user_id: Some(bot_id),
+                        from_user_id: Some(current_player_id),
                         to_user_id: None,
                         msg_type: RoomMessageType::ReplaceCardsBot,
                     })
@@ -474,18 +476,23 @@ async fn bot_task(
                 current_player_id,
                 stack,
                 ..
-            } if current_player_id == bot_id => {
-                tracing::debug!("LINE 401 {bot_id} => {current_player_id}");
+            } if bot_ids
+                .iter()
+                .flatten()
+                .find(|b| *b == &current_player_id)
+                .is_some() =>
+            {
+                tracing::debug!("LINE 401 {current_player_id}");
                 sender
                     .broadcast_direct(RoomMessage {
-                        from_user_id: Some(bot_id),
+                        from_user_id: Some(current_player_id),
                         to_user_id: None,
                         msg_type: RoomMessageType::PlayBot,
                     })
                     .await?;
             }
             RoomMessageType::End { .. } => {
-                tracing::info!("bot {bot_id} say goodbye.");
+                tracing::info!("bot task say goodbye.");
                 return Ok(());
             }
 
@@ -493,6 +500,7 @@ async fn bot_task(
         }
         // todo
     }
+    tracing::info!("au revoir");
     Ok(())
 }
 
@@ -659,15 +667,17 @@ pub async fn room_task(
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     tracing::info!("setup room task {id}...");
     let (sender, mut receiver) = {
-        let room_guard = room.read().await;
-        let sender = room_guard.sender.clone();
+        let mut room_guard = room.write().await;
+        let Some(sender) = room_guard.sender.take() else {
+            panic!("no sender")
+        };
         let receiver = sender.new_receiver();
         (sender, receiver)
     };
     let room = room.clone();
     tracing::info!("listening room task {id}...");
     while let Ok(msg) = receiver.recv_direct().await {
-        tracing::debug!(
+        tracing::info!(
             "receiver count {}, inactive receiver count {}, sender count {}, message in the channel {}",
             sender.receiver_count(),
             sender.inactive_receiver_count(),
@@ -683,16 +693,29 @@ pub async fn room_task(
         match msg.msg_type {
             RoomMessageType::JoinBot => {
                 // todo make sure the room creator is the one who send the msg
-                let room_guard = room.read().await;
+                let mut room_guard = room.write().await;
 
-                if let RoomState::WaitingForPlayers(ref players) = room_guard.state {
+                if let RoomState::WaitingForPlayers(ref players) = &room_guard.state {
                     let uuid = Uuid::new_v4();
-                    tokio::task::spawn(bot_task(sender.clone(), uuid));
+                    let Some(bot_seat) = room_guard.bots.iter_mut().find(|b| b.is_none()) else {
+                        unreachable!("no seats for bot")
+                    };
+                    *bot_seat = Some(uuid);
+
+                    sender
+                        .broadcast_direct(RoomMessage {
+                            from_user_id: Some(uuid),
+                            to_user_id: None,
+                            msg_type: RoomMessageType::Join,
+                        })
+                        .await?;
                 }
             }
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
                 let is_viewer = room_guard.viewers.iter().any(|p| p == &from_user_id);
+                let bots = room_guard.bots;
+
                 match room_guard.state {
                     RoomState::WaitingForPlayers(ref mut players) => {
                         if players.iter().any(|p| p == &Some(from_user_id)) || is_viewer {
@@ -720,6 +743,9 @@ pub async fn room_task(
                             .await?;
 
                         if players.iter().all(|p| p.is_some()) {
+                            let sender_bot = sender.clone();
+                            tokio::spawn(async move { bot_task(sender_bot, bots).await });
+                            tokio::time::sleep(Duration::from_millis(500)).await;
                             let users_guard = users.read().await;
                             let users: [User; PLAYER_NUMBER] = players.map(|player| {
                                 let Some(player) = player else { unreachable!() };

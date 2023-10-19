@@ -1,6 +1,6 @@
 use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow};
 
-use async_broadcast::Sender;
+use async_broadcast::{InactiveReceiver, Receiver, Sender};
 use async_session::MemoryStore;
 use axum::{
     extract::{
@@ -41,10 +41,10 @@ pub async fn ws_handler(
     for r in rooms_guard.iter() {
         let room = r.read().await;
         if room.id == room_id {
-            let sender = room.sender.clone();
+            let user_receiver = room.receiver.activate_cloned();
 
             return axum::response::Result::Ok(
-                ws.on_upgrade(move |socket| handle_socket(socket, addr, sender, user_id)),
+                ws.on_upgrade(move |socket| handle_socket(socket, addr, user_receiver, user_id)),
             );
         }
     }
@@ -54,7 +54,7 @@ pub async fn ws_handler(
 async fn handle_socket(
     mut socket: WebSocket,
     who: SocketAddr,
-    user_sender: Sender<RoomMessage>,
+    mut user_receiver: Receiver<RoomMessage>,
     user_id: UserId,
 ) {
     if socket.send(Message::Ping(vec![1, 2, 3])).await.is_ok() {
@@ -75,7 +75,7 @@ async fn handle_socket(
         }
     }
 
-    let mut user_receiver = user_sender.new_receiver();
+    let user_sender = user_receiver.new_sender();
 
     let (mut sender, mut receiver) = socket.split();
 
@@ -152,14 +152,14 @@ async fn handle_socket(
         rv_a = (&mut room_send_task) => {
             match rv_a {
                 Ok(_) => tracing::info!("stop sending messages to {who}"),
-                Err(a) => tracing::info!("Error sending messages {:?}", a)
+                Err(a) => tracing::error!("Error sending messages {:?}", a)
             }
             room_receive_task.abort();
         },
         rv_b = (&mut room_receive_task) => {
             match rv_b {
                 Ok(_) => tracing::info!("stop receiving messages from {who}"),
-                Err(b) => tracing::info!("Error receiving messages {b:?}")
+                Err(b) => tracing::error!("Error receiving messages {b:?}")
             }
             room_send_task.abort();
         }
