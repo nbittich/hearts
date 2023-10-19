@@ -17,6 +17,7 @@ pub static ABRITRATRY_CHANNEL_CAPACITY: usize = 64;
 pub static DEFAULT_HANDS: u8 = 3;
 pub static TIMEOUT_SECS: usize = 5;
 pub static BOT_SLEEP_SECS: u64 = 1;
+pub static COMPUTE_SCORE_DELAY_SECS: u64 = 1;
 
 #[cfg(test)]
 mod test {}

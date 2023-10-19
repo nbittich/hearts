@@ -8,7 +8,10 @@ use std::{
 };
 
 use crate::{
-    constants::{ABRITRATRY_CHANNEL_CAPACITY, BOT_SLEEP_SECS, DEFAULT_HANDS, TIMEOUT_SECS},
+    constants::{
+        ABRITRATRY_CHANNEL_CAPACITY, BOT_SLEEP_SECS, COMPUTE_SCORE_DELAY_SECS, DEFAULT_HANDS,
+        TIMEOUT_SECS,
+    },
     user::{User, UserId, Users},
 };
 use arraystring::ArrayString;
@@ -179,7 +182,7 @@ async fn timeout_bot(
     sender: Sender<RoomMessage>,
     bot_msg: impl Fn() -> RoomMessage,
 ) {
-    tracing::info!("spawned timeout for {player_id}");
+    tracing::debug!("spawned timeout for {player_id}");
     let now = Instant::now();
     let mut timeout_act = Duration::from_secs(TIMEOUT_SECS as u64);
 
@@ -325,7 +328,8 @@ async fn send_message_after_played(
                     },
                 })
                 .await?;
-            tokio::time::sleep(Duration::from_secs(2)).await;
+
+            tokio::time::sleep(Duration::from_secs(COMPUTE_SCORE_DELAY_SECS)).await;
 
             match &game.state {
                 GameState::PlayingHand {
@@ -663,7 +667,7 @@ pub async fn room_task(
     let room = room.clone();
     tracing::info!("listening room task {id}...");
     while let Ok(msg) = receiver.recv_direct().await {
-        tracing::info!(
+        tracing::debug!(
             "receiver count {}, inactive receiver count {}, sender count {}, message in the channel {}",
             sender.receiver_count(),
             sender.inactive_receiver_count(),
