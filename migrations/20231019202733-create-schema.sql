@@ -11,7 +11,7 @@ create table if not exists rooms {
 
 create table if not exists player_room {
     player_id INTEGER,
-    room_id INTEGER
+    room_id INTEGER,
     FOREIGN KEY (player_id) REFERENCES users(id),
     FOREIGN KEY (room_id) REFERENCES rooms(id),
 };
