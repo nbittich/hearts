@@ -87,6 +87,13 @@ WEBSOCKET.onmessage = (evt) => {
       currentPlayerId = current_player_id;
       resetCurrentScores(); // todo maybe not needed
       renderNextPlayerToReplaceCards(mode, currentPlayerId);
+    } else if (roomMessage.msgType.startHand) {
+      mode = PLAYING_HAND;
+      let { current_player_id } = roomMessage.msgType.startHand;
+      currentPlayerId = current_player_id;
+      renderNextPlayer(mode, currentPlayerId);
+
+      sendGetCards();
     } else if (roomMessage.msgType.nextPlayerToPlay) {
       mode = PLAYING_HAND;
       let { current_cards, current_player_id, stack } =

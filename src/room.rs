@@ -39,6 +39,10 @@ pub type StaticStr = Cow<'static, str>;
 #[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub enum RoomMessageType {
+    StartHand {
+        current_player_id: UserId,
+        uuid: Uuid,
+    },
     Join,
     TimedOut,
     JoinBot,
@@ -205,6 +209,11 @@ async fn timeout_bot(
                 | RoomMessageType::NextPlayerToReplaceCards {
                     current_player_id,
                     uuid,
+                }
+                | RoomMessageType::StartHand {
+                    current_player_id,
+                    uuid,
+                    ..
                 }
                 | RoomMessageType::NextPlayerToPlay {
                     current_player_id,
@@ -473,9 +482,10 @@ async fn bot_task(
             }
 
             RoomMessageType::NextPlayerToPlay {
-                current_player_id,
-                stack,
-                ..
+                current_player_id, ..
+            }
+            | RoomMessageType::StartHand {
+                current_player_id, ..
             } if bot_ids
                 .iter()
                 .flatten()
@@ -554,23 +564,33 @@ async fn send_message_after_cards_replaced(
             current_scores: _,
         } => {
             // send play event
-            for player_id in game.player_ids_in_order() {
-                let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
-                    .get_player_cards(player_id)
-                    .map(convert_card_to_player_card);
-                sender
-                    .broadcast_direct(RoomMessage {
-                        from_user_id: None,
-                        to_user_id: Some(player_id),
-                        msg_type: RoomMessageType::NextPlayerToPlay {
-                            current_player_id: next_player_id,
-                            current_cards: Some(cards),
-                            uuid,
-                            stack: convert_stack_to_card_player_card(stack),
-                        },
-                    })
-                    .await?;
-            }
+            sender
+                .broadcast_direct(RoomMessage {
+                    from_user_id: None,
+                    to_user_id: None,
+                    msg_type: RoomMessageType::StartHand {
+                        current_player_id: next_player_id,
+                        uuid,
+                    },
+                })
+                .await?;
+            // for player_id in game.player_ids_in_order() {
+            //     let cards: [Option<PlayerCard>; PLAYER_CARD_SIZE] = game
+            //         .get_player_cards(player_id)
+            //         .map(convert_card_to_player_card);
+            //     sender
+            //         .broadcast_direct(RoomMessage {
+            //             from_user_id: None,
+            //             to_user_id: Some(player_id),
+            //             msg_type: RoomMessageType::NextPlayerToPlay {
+            //                 current_player_id: next_player_id,
+            //                 current_cards: Some(cards),
+            //                 uuid,
+            //                 stack: convert_stack_to_card_player_card(stack),
+            //             },
+            //         })
+            //         .await?;
+            // }
 
             tracing::debug!(" LINE 471 => {next_player_id}");
             if game
