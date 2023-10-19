@@ -442,75 +442,51 @@ async fn send_message_after_played(
 }
 
 async fn bot_task(
-    sender: Sender<RoomMessage>,
-    bot_ids: [Option<UserId>; PLAYER_NUMBER],
+    sender: &Sender<RoomMessage>,
+    msg: RoomMessage,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
-    tracing::info!("setup bot task with bots {bot_ids:?}...");
-    if bot_ids.iter().all(Option::is_none) {
-        tracing::info!("nothing to do.. gonna sleep now");
-    }
-    let mut receiver = sender.new_receiver();
-
-    while let Ok(msg) = receiver.recv_direct().await {
-        if msg.from_user_id.is_some() {
-            continue; // only interested by system msg
+    match msg.msg_type {
+        RoomMessageType::NewHand {
+            player_ids_in_order: _,
+            current_player_id,
+            current_hand: _,
+            hands: _,
+            ..
+        }
+        | RoomMessageType::NextPlayerToReplaceCards {
+            current_player_id, ..
+        } => {
+            sender
+                .broadcast_direct(RoomMessage {
+                    from_user_id: Some(current_player_id),
+                    to_user_id: None,
+                    msg_type: RoomMessageType::ReplaceCardsBot,
+                })
+                .await?;
         }
 
-        match msg.msg_type {
-            RoomMessageType::NewHand {
-                player_ids_in_order: _,
-                current_player_id,
-                current_hand: _,
-                hands: _,
-                ..
-            }
-            | RoomMessageType::NextPlayerToReplaceCards {
-                current_player_id, ..
-            } if bot_ids
-                .iter()
-                .flatten()
-                .find(|b| *b == &current_player_id)
-                .is_some() =>
-            {
-                sender
-                    .broadcast_direct(RoomMessage {
-                        from_user_id: Some(current_player_id),
-                        to_user_id: None,
-                        msg_type: RoomMessageType::ReplaceCardsBot,
-                    })
-                    .await?;
-            }
-
-            RoomMessageType::NextPlayerToPlay {
-                current_player_id, ..
-            }
-            | RoomMessageType::StartHand {
-                current_player_id, ..
-            } if bot_ids
-                .iter()
-                .flatten()
-                .find(|b| *b == &current_player_id)
-                .is_some() =>
-            {
-                tracing::debug!("LINE 401 {current_player_id}");
-                sender
-                    .broadcast_direct(RoomMessage {
-                        from_user_id: Some(current_player_id),
-                        to_user_id: None,
-                        msg_type: RoomMessageType::PlayBot,
-                    })
-                    .await?;
-            }
-            RoomMessageType::End { .. } => {
-                tracing::info!("bot task say goodbye.");
-                return Ok(());
-            }
-
-            _ => tracing::debug!("we don't care about {msg:?}"),
+        RoomMessageType::NextPlayerToPlay {
+            current_player_id, ..
         }
-        // todo
+        | RoomMessageType::StartHand {
+            current_player_id, ..
+        } => {
+            tracing::debug!("LINE 401 {current_player_id}");
+            sender
+                .broadcast_direct(RoomMessage {
+                    from_user_id: Some(current_player_id),
+                    to_user_id: None,
+                    msg_type: RoomMessageType::PlayBot,
+                })
+                .await?;
+        }
+        RoomMessageType::End { .. } => {
+            tracing::info!("bot task say goodbye.");
+            return Ok(());
+        }
+
+        _ => tracing::debug!("we don't care about {msg:?}"),
     }
-    tracing::info!("au revoir");
     Ok(())
 }
 
@@ -707,30 +683,27 @@ pub async fn room_task(
         );
 
         let Some(from_user_id) = msg.from_user_id else {
+            let is_bot = {
+                let room_guard = room.read().await;
+                if let RoomState::Started(ref players, ref game) = room_guard.state {
+                    let current_player_id = game.current_player_id().ok_or("should not happen")?;
+                    let bots = &room_guard.bots;
+                    bots.iter()
+                        .flatten()
+                        .find(|b| *b == &current_player_id)
+                        .is_some()
+                } else {
+                    false
+                }
+            };
+            if is_bot {
+                bot_task(&sender, msg).await?;
+            }
+
             continue;
         };
 
         match msg.msg_type {
-            RoomMessageType::JoinBot => {
-                // todo make sure the room creator is the one who send the msg
-                let mut room_guard = room.write().await;
-
-                if let RoomState::WaitingForPlayers(ref players) = &room_guard.state {
-                    let uuid = Uuid::new_v4();
-                    let Some(bot_seat) = room_guard.bots.iter_mut().find(|b| b.is_none()) else {
-                        unreachable!("no seats for bot")
-                    };
-                    *bot_seat = Some(uuid);
-
-                    sender
-                        .broadcast_direct(RoomMessage {
-                            from_user_id: Some(uuid),
-                            to_user_id: None,
-                            msg_type: RoomMessageType::Join,
-                        })
-                        .await?;
-                }
-            }
             RoomMessageType::Join => {
                 let mut room_guard = room.write().await;
                 let is_viewer = room_guard.viewers.iter().any(|p| p == &from_user_id);
@@ -763,9 +736,9 @@ pub async fn room_task(
                             .await?;
 
                         if players.iter().all(|p| p.is_some()) {
-                            let sender_bot = sender.clone();
-                            tokio::spawn(async move { bot_task(sender_bot, bots).await });
-                            tokio::time::sleep(Duration::from_millis(500)).await;
+                            // let sender_bot = sender.clone();
+                            // tokio::spawn(async move { bot_task(sender_bot, bots).await });
+                            // tokio::time::sleep(Duration::from_millis(500)).await;
                             let users_guard = users.read().await;
                             let users: [User; PLAYER_NUMBER] = players.map(|player| {
                                 let Some(player) = player else { unreachable!() };
@@ -871,6 +844,54 @@ pub async fn room_task(
                 }
             }
 
+            RoomMessageType::ReplaceCards(player_cards_exchange) => {
+                let mut room_guard = room.write().await;
+                if !is_valid_msg(&room_guard, from_user_id) {
+                    continue;
+                }
+                if let RoomState::Started(ref players, ref mut game) = room_guard.state {
+                    if game.current_player_id() == Some(from_user_id) {
+                        if let GameState::ExchangeCards { commands: _ } = &game.state {
+                            let command = player_cards_exchange.map(|pc| pc.position_in_deck);
+                            if let Err(game_error) = game.exchange_cards(command) {
+                                sender
+                                    .broadcast_direct(RoomMessage {
+                                        from_user_id: None,
+                                        to_user_id: Some(from_user_id),
+                                        msg_type: RoomMessageType::PlayerError(game_error),
+                                    })
+                                    .await?;
+                            } else {
+                                let Some(next_player_id) = game.current_player_id() else {
+                                    unreachable!()
+                                };
+                                send_message_after_cards_replaced(game, &sender, next_player_id)
+                                    .await?;
+                            }
+                        }
+                    }
+                }
+            }
+            RoomMessageType::JoinBot => {
+                // todo make sure the room creator is the one who send the msg
+                let mut room_guard = room.write().await;
+
+                if let RoomState::WaitingForPlayers(ref players) = &room_guard.state {
+                    let uuid = Uuid::new_v4();
+                    let Some(bot_seat) = room_guard.bots.iter_mut().find(|b| b.is_none()) else {
+                        unreachable!("no seats for bot")
+                    };
+                    *bot_seat = Some(uuid);
+
+                    sender
+                        .broadcast_direct(RoomMessage {
+                            from_user_id: Some(uuid),
+                            to_user_id: None,
+                            msg_type: RoomMessageType::Join,
+                        })
+                        .await?;
+                }
+            }
             RoomMessageType::ReplaceCardsBot => {
                 tracing::debug!("entering replace card bot");
                 tokio::time::sleep(Duration::from_secs(BOT_SLEEP_SECS)).await; // give some delay
@@ -900,35 +921,6 @@ pub async fn room_task(
                             "REPLACE CARD BOT ERR:{from_user_id} not current player id {:?}",
                             game.current_player_id()
                         );
-                    }
-                }
-            }
-
-            RoomMessageType::ReplaceCards(player_cards_exchange) => {
-                let mut room_guard = room.write().await;
-                if !is_valid_msg(&room_guard, from_user_id) {
-                    continue;
-                }
-                if let RoomState::Started(ref players, ref mut game) = room_guard.state {
-                    if game.current_player_id() == Some(from_user_id) {
-                        if let GameState::ExchangeCards { commands: _ } = &game.state {
-                            let command = player_cards_exchange.map(|pc| pc.position_in_deck);
-                            if let Err(game_error) = game.exchange_cards(command) {
-                                sender
-                                    .broadcast_direct(RoomMessage {
-                                        from_user_id: None,
-                                        to_user_id: Some(from_user_id),
-                                        msg_type: RoomMessageType::PlayerError(game_error),
-                                    })
-                                    .await?;
-                            } else {
-                                let Some(next_player_id) = game.current_player_id() else {
-                                    unreachable!()
-                                };
-                                send_message_after_cards_replaced(game, &sender, next_player_id)
-                                    .await?;
-                            }
-                        }
                     }
                 }
             }

@@ -47,7 +47,7 @@ WEBSOCKET.onclose = () => {
 };
 
 WEBSOCKET.onerror = (err) => {
-  console.error(`ws error ${err}`);
+  console.error(`ws error ${JSON.stringify(err)}`);
 };
 
 WEBSOCKET.onmessage = (evt) => {

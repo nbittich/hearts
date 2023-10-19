@@ -797,7 +797,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "lib-hearts"
 version = "0.1.28"
-source = "git+ssh://git@github.com/nbittich/lib-hearts.git#2a2e618ea2c9251a7d5e9c8b35284e3bd71861d3"
+source = "git+ssh://git@github.com/nbittich/lib-hearts.git#0ada82b347c6823d845ac7aaaea8e00031db6c56"
 dependencies = [
  "rand",
  "serde",
