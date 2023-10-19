@@ -1,5 +1,6 @@
 use std::{borrow::Cow, net::SocketAddr, ops::ControlFlow};
 
+use async_broadcast::Sender;
 use async_session::MemoryStore;
 use axum::{
     extract::{
@@ -12,7 +13,6 @@ use axum::{
     TypedHeader,
 };
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
-use tokio::sync::broadcast::Sender;
 use uuid::Uuid;
 
 use crate::{
@@ -75,7 +75,7 @@ async fn handle_socket(
         }
     }
 
-    let mut user_receiver = user_sender.subscribe();
+    let mut user_receiver = user_sender.new_receiver();
 
     let (mut sender, mut receiver) = socket.split();
 
@@ -95,7 +95,7 @@ async fn handle_socket(
             ControlFlow::Continue(())
         }
 
-        while let Ok(msg) = user_receiver.recv().await {
+        while let Ok(msg) = user_receiver.recv_direct().await {
             if let Some(to_user_id) = &msg.to_user_id {
                 // check if the message is for this user
                 if to_user_id != &user_id {
@@ -112,6 +112,7 @@ async fn handle_socket(
                 };
             }
         }
+        tracing::error!("user_receiver stopped");
         if let Err(e) = sender
             .send(Message::Close(Some(CloseFrame {
                 code: axum::extract::ws::close_code::NORMAL,
@@ -127,10 +128,13 @@ async fn handle_socket(
             // print message and break if instructed to do so
             match process_message(&msg, who) {
                 ControlFlow::Continue(Some(room_msg)) => {
-                    if let Err(e) = user_sender.send(RoomMessage {
-                        from_user_id: Some(user_id),
-                        ..room_msg
-                    }) {
+                    if let Err(e) = user_sender
+                        .broadcast_direct(RoomMessage {
+                            from_user_id: Some(user_id),
+                            ..room_msg
+                        })
+                        .await
+                    {
                         tracing::error!("could not send message to room {e:?}, message: {msg:?}");
                         break;
                     }
