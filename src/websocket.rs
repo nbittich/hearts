@@ -16,7 +16,7 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use uuid::Uuid;
 
 use crate::{
-    room::{RoomMessage, Rooms},
+    room::{Room, RoomMessage, Rooms},
     user::{User, UserId},
 };
 
@@ -38,17 +38,27 @@ pub async fn ws_handler(
     tracing::info!("`{user_id} with agent {user_agent}` at {addr} connected.");
     let rooms_guard = rooms.read().await;
 
-    for r in rooms_guard.iter() {
-        let room = r.read().await;
-        if room.id == room_id {
-            let user_receiver = room.receiver.activate_cloned();
+    // todo this is probably why everything is broken
 
-            return axum::response::Result::Ok(
-                ws.on_upgrade(move |socket| handle_socket(socket, addr, user_receiver, user_id)),
-            );
+    let Some(room) = ({
+        let mut res = None;
+        for r in rooms_guard.iter() {
+            let room = r.read().await;
+            if room_id == room.id {
+                res = Some(r.clone());
+                break;
+            }
         }
-    }
-    Err(ErrorResponse::from(StatusCode::NOT_FOUND))
+        res
+    }) else {
+        return Err(ErrorResponse::from(StatusCode::NOT_FOUND));
+    };
+
+    let user_receiver = Room::restart(room).await.activate();
+
+    return axum::response::Result::Ok(
+        ws.on_upgrade(move |socket| handle_socket(socket, addr, user_receiver, user_id)),
+    );
 }
 
 async fn handle_socket(
@@ -77,6 +87,8 @@ async fn handle_socket(
 
     let user_sender = user_receiver.new_sender();
 
+    tracing::debug!("is channel closed: {}", user_sender.is_closed());
+
     let (mut sender, mut receiver) = socket.split();
 
     let mut room_send_task = tokio::spawn(async move {
@@ -95,24 +107,33 @@ async fn handle_socket(
             ControlFlow::Continue(())
         }
 
-        while let Ok(msg) = user_receiver.recv_direct().await {
-            if let Some(to_user_id) = &msg.to_user_id {
-                // check if the message is for this user
-                if to_user_id != &user_id {
-                    // it is not for you
-                    continue;
+        loop {
+            match user_receiver.recv_direct().await {
+                Ok(msg) => {
+                    if let Some(to_user_id) = &msg.to_user_id {
+                        // check if the message is for this user
+                        if to_user_id != &user_id {
+                            // it is not for you
+                            continue;
+                        }
+                        if send_msg(&mut sender, msg).await.is_break() {
+                            break;
+                        };
+                    } else if msg.from_user_id.is_none() {
+                        // message comes from system and is not for anyone in particular, broadcast it
+                        if send_msg(&mut sender, msg).await.is_break() {
+                            break;
+                        };
+                    }
                 }
-                if send_msg(&mut sender, msg).await.is_break() {
+                Err(e) => {
+                    tracing::error!("user_receiver stopped {e}");
                     break;
-                };
-            } else if msg.from_user_id.is_none() {
-                // message comes from system and is not for anyone in particular, broadcast it
-                if send_msg(&mut sender, msg).await.is_break() {
-                    break;
-                };
+                }
             }
         }
-        tracing::error!("user_receiver stopped");
+        user_receiver.deactivate();
+
         if let Err(e) = sender
             .send(Message::Close(Some(CloseFrame {
                 code: axum::extract::ws::close_code::NORMAL,

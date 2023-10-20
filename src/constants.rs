@@ -13,7 +13,7 @@ pub static USER_ID: &str = "X_USER_ID";
 // this may have to be increased
 // broadcast channels are super weird and hard to debug
 // thus if there's an issue, it probably means you have to increase this.
-pub static ABRITRATRY_CHANNEL_CAPACITY: usize = 64;
+pub static ABRITRATRY_CHANNEL_CAPACITY: usize = 8;
 pub static DEFAULT_HANDS: u8 = 3;
 pub static TIMEOUT_SECS: usize = 5;
 pub static BOT_SLEEP_SECS: u64 = 1;

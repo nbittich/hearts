@@ -139,8 +139,6 @@ async fn create_room(
     let mut rooms_guard = rooms.write().await;
     rooms_guard.push(room);
 
-    // todo i stopped there
-
     Ok(response)
 }
 
