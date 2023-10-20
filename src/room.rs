@@ -16,6 +16,7 @@ use crate::{
 };
 use arraystring::ArrayString;
 use async_broadcast::{InactiveReceiver, Receiver, Sender};
+use dashmap::DashMap;
 use lib_hearts::{
     get_card_by_idx, Card, Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard,
     PLAYER_CARD_SIZE, PLAYER_NUMBER,
@@ -25,7 +26,7 @@ use tokio::{sync::RwLock, task::JoinHandle, time::timeout};
 use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U4>;
 pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
-pub type Rooms = Arc<RwLock<Vec<Arc<RwLock<Room>>>>>;
+pub type Rooms = Arc<DashMap<Uuid, Arc<RwLock<Room>>>>;
 
 #[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
 pub struct PlayerCard {
@@ -158,7 +159,7 @@ fn is_valid_msg(room: &Room, user_id: UserId) -> bool {
 }
 
 impl Room {
-    pub async fn new(users: Users) -> Arc<RwLock<Room>> {
+    pub async fn new(users: Users) -> (Uuid, Arc<RwLock<Room>>) {
         let (sender, receiver) = async_broadcast::broadcast(ABRITRATRY_CHANNEL_CAPACITY);
         let inactive_receiver = receiver.deactivate();
         let id = Uuid::new_v4();
@@ -175,7 +176,7 @@ impl Room {
         let room = Arc::new(RwLock::new(room));
         Room::restart(room.clone()).await;
 
-        room
+        (id, room)
     }
     pub async fn restart(room: Arc<RwLock<Room>>) -> InactiveReceiver<RoomMessage> {
         let (is_finished, users, id, inactive_receiver) = {
@@ -791,13 +792,17 @@ pub async fn room_task(
                                     // let sender_bot = sender.clone();
                                     // tokio::spawn(async move { bot_task(sender_bot, bots).await });
                                     // tokio::time::sleep(Duration::from_millis(500)).await;
-                                    let users_guard = users.read().await;
                                     let users: [User; PLAYER_NUMBER] = players.map(|player| {
                                         let Some(player) = player else { unreachable!() };
-                                        users_guard
+                                        users
                                             .iter()
-                                            .find(|p| p.id == player)
-                                            .cloned()
+                                            .find_map(|p| {
+                                                if p.id == player {
+                                                    Some(p.clone())
+                                                } else {
+                                                    None
+                                                }
+                                            })
                                             .unwrap_or_else(|| {
                                                 User::default().human(false).with_id(player)
                                             })

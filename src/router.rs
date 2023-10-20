@@ -117,13 +117,11 @@ pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
 }
 
 async fn index_page(State(rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
-    let rooms_guard = rooms.read().await;
-    let mut room_ids: Vec<Uuid> = Vec::with_capacity(rooms_guard.len());
-    for room in rooms_guard.iter() {
-        room_ids.push(room.read().await.id);
-    }
-
-    let templ = get_template(INDEX_PAGE, context! {rooms => room_ids}).map_err(service_error)?;
+    let templ = get_template(
+        INDEX_PAGE,
+        context! {rooms => rooms.iter().map(|e|e.key().clone()).collect::<Vec<_>>()},
+    )
+    .map_err(service_error)?;
     Ok(Html::from(templ))
 }
 
@@ -131,13 +129,10 @@ async fn create_room(
     State(rooms): State<Rooms>,
     State(users): State<Users>,
 ) -> axum::response::Result<impl IntoResponse> {
-    let room = Room::new(users).await;
-    let (clone, room) = (room.clone(), room);
-    let room_guard = clone.read().await;
-    let response = Redirect::to(&format!("/room/{}", room_guard.id));
+    let (id, room) = Room::new(users).await;
+    let response = Redirect::to(&format!("/room/{}", id));
 
-    let mut rooms_guard = rooms.write().await;
-    rooms_guard.push(room);
+    rooms.insert(id, room);
 
     Ok(response)
 }
@@ -149,23 +144,21 @@ async fn get_room(
     user: User,
 ) -> axum::response::Result<impl IntoResponse> {
     tracing::debug!("get room id {id}");
-    let rooms_guard = rooms.read().await;
-    for r in rooms_guard.iter() {
-        let room = r.read().await;
-        if room.id == id {
-            let templ = get_template(
-                ROOM_PAGE,
-                context!(
-                    room => *room,
-                    ws_endpoint => ws_endpoint,
-                    user => user,
-                    timeout => TIMEOUT_SECS
-                ),
-            )
-            .map_err(service_error)?;
-            return Ok(Html::from(templ));
-        }
+    if let Some(room) = rooms.get(&id) {
+        let room = room.read().await;
+        let templ = get_template(
+            ROOM_PAGE,
+            context!(
+                room => *room,
+                ws_endpoint => ws_endpoint,
+                user => user,
+                timeout => TIMEOUT_SECS
+            ),
+        )
+        .map_err(service_error)?;
+        return Ok(Html::from(templ));
     }
+
     Err(ErrorResponse::from(StatusCode::NOT_FOUND))
 }
 
@@ -196,8 +189,7 @@ pub async fn build_guest_session_if_none<B>(
             .with_id(id)
             .human(true)
             .name(format!("Guest{id}"));
-        let mut users_guard = users.write().await;
-        users_guard.push(user);
+        users.insert(user);
     }
 
     // do something with `response`...

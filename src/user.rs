@@ -8,9 +8,9 @@ use axum::{
     http::{header, request::Parts},
     TypedHeader,
 };
+use dashmap::DashSet;
 use rand::RngCore;
 use serde::Serialize;
-use tokio::sync::RwLock;
 use uuid::Uuid;
 
 use crate::{
@@ -21,8 +21,8 @@ use crate::{
 
 pub type UserId = Uuid;
 
-pub type Users = Arc<RwLock<Vec<User>>>;
-#[derive(Copy, Clone, Debug, Serialize)]
+pub type Users = Arc<DashSet<User>>;
+#[derive(Copy, Clone, Debug, Serialize, Hash, PartialEq, Eq)]
 pub struct User {
     pub id: UserId,
     pub name: ArrayString<typenum::U12>,
@@ -98,11 +98,14 @@ where
                 let user_id = session.get::<UserId>(USER_ID).ok_or(HomePageRedirect)?;
                 app_state
                     .users
-                    .read()
-                    .await
                     .iter()
-                    .find(|u| u.id == user_id)
-                    .cloned()
+                    .find_map(|u| {
+                        if u.id == user_id {
+                            Some(u.clone())
+                        } else {
+                            None
+                        }
+                    })
                     .ok_or(HomePageRedirect)
             }
             Err(e) => Err(e),
