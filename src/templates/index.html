@@ -1,13 +1,12 @@
-{% extends "base.html" %}
-{% block title %}{{ super() }}{% endblock %}
-{% block body %}
-<form method="post" action="/create-room">
+{% extends "base.html" %} {% block title %}{{ super() }}{% endblock %} {% block
+body %}
+<form method="post" action="/create-room" target="_blank">
   <button type="submit">New room</button>
 </form>
-<ul>
+<ol>
   {%for room in rooms %}
   <li><a href="/room/{{room}}">Room #{{room}}</a></li>
   {%endfor %}
-</ul>
+</ol>
 
 {% endblock %}
