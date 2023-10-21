@@ -16,7 +16,7 @@ use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use uuid::Uuid;
 
 use crate::{
-    room::{Room, RoomMessage, Rooms},
+    room::{RoomMessage, Rooms},
     user::{User, UserId},
 };
 

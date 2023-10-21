@@ -715,7 +715,6 @@ pub async fn room_task(
         let receiver = sender.new_receiver();
         (sender, receiver)
     };
-    let room = room.clone();
     tracing::info!("listening room task {id}...");
     loop {
         match receiver.recv_direct().await {
