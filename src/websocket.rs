@@ -37,13 +37,11 @@ pub async fn ws_handler(
     let user_id = user.id;
     tracing::info!("`{user_id} with agent {user_agent}` at {addr} connected.");
 
-    // todo this is probably why everything is broken
-
     let Some(room) = rooms.get(&room_id) else {
         return Err(ErrorResponse::from(StatusCode::NOT_FOUND));
     };
 
-    let user_receiver = Room::restart(room.clone()).await.activate();
+    let user_receiver = room.read().await.receiver.activate_cloned();
 
     return axum::response::Result::Ok(
         ws.on_upgrade(move |socket| handle_socket(socket, addr, user_receiver, user_id)),

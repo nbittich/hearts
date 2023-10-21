@@ -12,7 +12,6 @@ use async_session::MemoryStore;
 use constants::{SERVICE_APPLICATION_NAME, SERVICE_HOST, SERVICE_PORT};
 use dashmap::{DashMap, DashSet};
 use router::{get_router, setup_tracing};
-use tokio::sync::RwLock;
 
 use crate::constants::WS_ENDPOINT;
 #[tokio::main]

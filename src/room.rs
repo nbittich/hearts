@@ -970,8 +970,12 @@ pub async fn room_task(
                             // we don't check if player
                             // is a bot or not, in order to be able to implement timeout later
                             {
-                                if let GameState::ExchangeCards { commands: _ } = &game.state {
-                                    game.play_bot()?;
+                                if let GameState::ExchangeCards { .. } = &game.state {
+                                    if let e @ Err(_) = game.play_bot() {
+                                        tracing::error!("exchange cards error");
+                                        game.print_state();
+                                        e?;
+                                    }
                                     let Some(next_player_id) = game.current_player_id() else {
                                         unreachable!()
                                     };
