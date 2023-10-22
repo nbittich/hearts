@@ -817,7 +817,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "lib-hearts"
 version = "0.1.28"
-source = "git+ssh://git@github.com/nbittich/lib-hearts.git#f174a668a8080b2a4d378c58395c3d473ef1d363"
+source = "git+ssh://git@github.com/nbittich/lib-hearts.git#913f651a9f18814ca884bd08b30531d921fde908"
 dependencies = [
  "rand",
  "serde",
@@ -1184,9 +1184,9 @@ dependencies = [
 
 [[package]]
 name = "serde-big-array-options"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc2727af7a53c2f837dec27ec5fb5a555ae3af1d78dfce6f9c1922543a2f9805"
+checksum = "8b334f1a48619ed2f9f798e3d2832e2769b76beb6d086f29dedc6b1454072513"
 dependencies = [
  "serde",
 ]
