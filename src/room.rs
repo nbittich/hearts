@@ -111,7 +111,6 @@ pub struct RoomMessage {
 #[derive(Serialize)]
 pub struct Room {
     pub id: Uuid,
-    #[serde(skip_serializing)]
     pub state: RoomState,
     pub viewers: HashSet<UserId>,
     pub bots: [Option<UserId>; PLAYER_NUMBER],
@@ -124,7 +123,7 @@ pub struct Room {
     #[serde(skip_serializing)]
     users: Users,
 }
-
+#[derive(Serialize, Deserialize)]
 pub enum RoomState {
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
     Started([User; PLAYER_NUMBER], Game),

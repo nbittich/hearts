@@ -11,6 +11,7 @@ use axum::{
 use dashmap::DashSet;
 use rand::RngCore;
 use serde::Serialize;
+use serde_derive::Deserialize;
 use uuid::Uuid;
 
 use crate::{
@@ -22,7 +23,7 @@ use crate::{
 pub type UserId = Uuid;
 
 pub type Users = Arc<DashSet<User>>;
-#[derive(Copy, Clone, Debug, Serialize, Hash, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct User {
     pub id: UserId,
     pub name: ArrayString<typenum::U12>,
