@@ -119,7 +119,7 @@ pub fn setup_tracing() -> Result<(), Box<dyn Error>> {
 async fn index_page(State(rooms): State<Rooms>) -> axum::response::Result<impl IntoResponse> {
     let templ = get_template(
         INDEX_PAGE,
-        context! {rooms => rooms.iter().map(|e|e.key().clone()).collect::<Vec<_>>()},
+        context! {rooms => rooms.iter().map(|e|*e.key()).collect::<Vec<_>>()},
     )
     .map_err(service_error)?;
     Ok(Html::from(templ))

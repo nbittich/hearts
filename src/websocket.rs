@@ -43,9 +43,9 @@ pub async fn ws_handler(
 
     let user_receiver = room.read().await.receiver.activate_cloned();
 
-    return axum::response::Result::Ok(
+    axum::response::Result::Ok(
         ws.on_upgrade(move |socket| handle_socket(socket, addr, user_receiver, user_id)),
-    );
+    )
 }
 
 async fn handle_socket(

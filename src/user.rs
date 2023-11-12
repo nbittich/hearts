@@ -102,7 +102,7 @@ where
                     .iter()
                     .find_map(|u| {
                         if u.id == user_id {
-                            Some(u.clone())
+                            Some(*u)
                         } else {
                             None
                         }

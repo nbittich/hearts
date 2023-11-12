@@ -445,7 +445,7 @@ async fn play_bot(
                     unreachable!()
                 };
                 tracing::debug!("after exchange cards, send message for next {next_player_id}");
-                send_message_after_cards_replaced(game, &sender, next_player_id).await?;
+                send_message_after_cards_replaced(game, sender, next_player_id).await?;
                 return Ok(game.current_player_id());
             }
             GameState::PlayingHand {
@@ -455,7 +455,7 @@ async fn play_bot(
                 tokio::time::sleep(Duration::from_secs(BOT_SLEEP_SECS)).await; // give some delay
                 game.play_bot()?;
                 let current_player_id = game.current_player_id();
-                if send_message_after_played(game, &sender).await? {
+                if send_message_after_played(game, sender).await? {
                     // game is done, update state
                     let player_scores = game.player_score_by_id();
                     *state = RoomState::Done(*users, *game);
@@ -670,8 +670,7 @@ pub async fn room_task(
                             let bots = &room_guard.bots;
                             bots.iter()
                                 .flatten()
-                                .find(|b| *b == &current_player_id)
-                                .is_some()
+                                .any(|b| b == &current_player_id)
                         } else {
                             false
                         }
@@ -729,7 +728,7 @@ pub async fn room_task(
                                             .iter()
                                             .find_map(|p| {
                                                 if p.id == player {
-                                                    Some(p.clone())
+                                                    Some(*p)
                                                 } else {
                                                     None
                                                 }
