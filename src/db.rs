@@ -1,17 +1,16 @@
 use std::{error::Error, str::FromStr};
 
 use arraystring::ArrayString;
-use sqlx::{sqlite::SqliteRow, Pool, Row, Sqlite};
+use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
 use crate::user::User;
 
 pub async fn find_user_by_id(id: Uuid, pool: &Pool<Sqlite>) -> Result<User, Box<dyn Error>> {
-    let row = sqlx::query("select * from users where id = ?")
-        .bind(id)
+    let row = sqlx::query!("select id, name, is_guest from users where id = ?", id)
         .fetch_one(pool)
         .await?;
-    row_to_user(row)
+    row_to_user(row.id, row.name, row.is_guest)
 }
 
 pub async fn upsert_user(user: User, pool: &Pool<Sqlite>) -> Result<(), Box<dyn Error>> {
@@ -34,13 +33,10 @@ pub async fn upsert_user(user: User, pool: &Pool<Sqlite>) -> Result<(), Box<dyn 
     Ok(())
 }
 
-fn row_to_user(row: SqliteRow) -> Result<User, Box<dyn Error>> {
-    let name: &str = row.try_get("name")?;
-    let id: Uuid = row.try_get("id")?;
-    let is_guest: bool = row.try_get("is_guest")?;
+fn row_to_user(id: Vec<u8>, name: String, is_guest: bool) -> Result<User, Box<dyn Error>> {
     Ok(User {
-        id,
-        name: ArrayString::from_str(name)?,
+        id: Uuid::from_slice(&id[..])?,
+        name: ArrayString::from_str(&name)?,
         bot: false,
         is_guest,
     })

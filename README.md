@@ -3,3 +3,4 @@ cargo sqlx prepare --database-url sqlite:/tmp/data.db
 sqlx migrate run --database-url sqlite:/tmp/data.db
 export DATABASE_URL="sqlite:/tmp/data.db"
 cargo sqlx prepare --check --database-url sqlite:/tmp/data.db
+sqlx create --database-url sqlite:/tmp/data.db
