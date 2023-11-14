@@ -39,3 +39,7 @@ time = { version = "0.3.30", features = [
 async-broadcast = "0.6.0"
 dashmap = "5.5.3"
 sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite", "uuid"] }
+
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
