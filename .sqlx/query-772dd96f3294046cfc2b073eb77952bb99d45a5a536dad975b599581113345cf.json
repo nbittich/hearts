@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT into users (id, name, is_guest)\n        VALUES (?1, ?2, ?3)\n        ON CONFLICT DO UPDATE SET name=?2, is_guest=?3;\n    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "772dd96f3294046cfc2b073eb77952bb99d45a5a536dad975b599581113345cf"
+}

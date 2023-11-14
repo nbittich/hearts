@@ -1,4 +1,4 @@
-use std::sync::Arc;
+
 
 use arraystring::ArrayString;
 use async_session::{async_trait, SessionStore};
@@ -8,7 +8,7 @@ use axum::{
     http::{header, request::Parts},
     TypedHeader,
 };
-use dashmap::DashSet;
+
 use rand::RngCore;
 use serde::Serialize;
 use serde_derive::Deserialize;
@@ -16,16 +16,17 @@ use uuid::Uuid;
 
 use crate::{
     constants::{COOKIE, USER_ID},
+    db::find_user_by_id,
     router::AppState,
     utils::HomePageRedirect,
 };
 
 pub type UserId = Uuid;
 
-pub type Users = Arc<DashSet<User>>;
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct User {
     pub id: UserId,
+    pub is_guest: bool,
     pub name: ArrayString<typenum::U12>,
     pub bot: bool,
 }
@@ -37,6 +38,7 @@ impl Default for User {
             id,
             name: ArrayString::from_chars(format!("Bot{}", rng.next_u32()).chars()),
             bot: true,
+            is_guest: false,
         }
     }
 }
@@ -56,6 +58,9 @@ impl User {
             name: ArrayString::from_chars(name.chars()),
             ..self
         }
+    }
+    pub fn is_guest(self, is_guest: bool) -> Self {
+        Self { is_guest, ..self }
     }
 }
 
@@ -97,17 +102,13 @@ where
                     .ok_or(HomePageRedirect)?;
 
                 let user_id = session.get::<UserId>(USER_ID).ok_or(HomePageRedirect)?;
-                app_state
-                    .users
-                    .iter()
-                    .find_map(|u| {
-                        if u.id == user_id {
-                            Some(*u)
-                        } else {
-                            None
-                        }
+
+                find_user_by_id(user_id, &app_state.db_pool)
+                    .await
+                    .map_err(|e| {
+                        tracing::debug!("FIND USER BY ID FAILED: {e}");
+                        HomePageRedirect
                     })
-                    .ok_or(HomePageRedirect)
             }
             Err(e) => Err(e),
         }

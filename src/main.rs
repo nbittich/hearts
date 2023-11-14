@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 mod constants;
+mod db;
 mod room;
 mod router;
 mod templ;
@@ -10,7 +11,7 @@ use std::{env::var, error::Error, net::SocketAddr, str::FromStr, sync::Arc};
 
 use async_session::MemoryStore;
 use constants::{SERVICE_APPLICATION_NAME, SERVICE_HOST, SERVICE_PORT};
-use dashmap::{DashMap, DashSet};
+use dashmap::DashMap;
 use router::{get_router, setup_tracing};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 
@@ -31,15 +32,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .connect_with(SqliteConnectOptions::from_str(&sqlite_url)?.create_if_missing(true))
         .await?;
 
-    let users = Arc::new(DashSet::with_capacity(100));
     let store = MemoryStore::new();
-    let app = get_router(
-        std::borrow::Cow::Owned(ws_endpoint),
-        db_pool,
-        rooms,
-        users,
-        store,
-    );
+    let app = get_router(std::borrow::Cow::Owned(ws_endpoint), db_pool, rooms, store);
 
     tracing::info!("{app_name} :: listening on {:?}", addr);
     axum::Server::bind(&addr)

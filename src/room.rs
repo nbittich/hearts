@@ -12,7 +12,9 @@ use crate::{
         ABRITRATRY_CHANNEL_CAPACITY, BOT_SLEEP_SECS, COMPUTE_SCORE_DELAY_SECS, DEFAULT_HANDS,
         TIMEOUT_SECS,
     },
-    user::{User, UserId, Users},
+    db::find_user_by_id,
+    user::{User, UserId},
+    utils::to_static_array,
 };
 use arraystring::ArrayString;
 use async_broadcast::{InactiveReceiver, Receiver, Sender};
@@ -22,6 +24,7 @@ use lib_hearts::{
     PLAYER_CARD_SIZE, PLAYER_NUMBER,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::{Pool, Sqlite};
 use tokio::{sync::RwLock, task::JoinHandle, time::timeout};
 use uuid::Uuid;
 pub type CardEmoji = ArrayString<typenum::U4>;
@@ -119,7 +122,7 @@ pub struct Room {
     #[serde(skip_serializing)]
     pub task: Option<JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>>,
     #[serde(skip_serializing)]
-    users: Users,
+    pool: Pool<Sqlite>,
 }
 #[derive(Serialize, Deserialize)]
 pub enum RoomState {
@@ -156,7 +159,7 @@ fn is_valid_msg(room: &Room, user_id: UserId) -> bool {
 }
 
 impl Room {
-    pub async fn new(users: Users) -> (Uuid, Arc<RwLock<Room>>) {
+    pub async fn new(pool: Pool<Sqlite>) -> (Uuid, Arc<RwLock<Room>>) {
         let (sender, receiver) = async_broadcast::broadcast(ABRITRATRY_CHANNEL_CAPACITY);
         let inactive_receiver = receiver.deactivate();
         let id = Uuid::new_v4();
@@ -168,7 +171,7 @@ impl Room {
             sender: Some(sender),
             receiver: inactive_receiver,
             task: None,
-            users: users.clone(),
+            pool,
         };
         let room = Arc::new(RwLock::new(room));
         Room::restart(room.clone()).await;
@@ -176,11 +179,11 @@ impl Room {
         (id, room)
     }
     pub async fn restart(room: Arc<RwLock<Room>>) -> InactiveReceiver<RoomMessage> {
-        let (is_finished, users, id, inactive_receiver) = {
+        let (is_finished, pool, id, inactive_receiver) = {
             let rg = room.read().await;
             (
                 rg.is_finished(),
-                rg.users.clone(),
+                rg.pool.clone(),
                 rg.id,
                 rg.receiver.clone(),
             )
@@ -191,7 +194,7 @@ impl Room {
             let (sender, receiver) = async_broadcast::broadcast(ABRITRATRY_CHANNEL_CAPACITY);
             let inactive_receiver = receiver.deactivate();
 
-            let task = room_task(room.clone(), users, id);
+            let task = room_task(room.clone(), pool, id);
             let task = tokio::spawn(async move {
                 match task.await {
                     v @ Ok(_) => {
@@ -634,7 +637,7 @@ async fn send_current_state(
 }
 pub async fn room_task(
     room: Arc<RwLock<Room>>,
-    users: Users,
+    pool: Pool<Sqlite>,
     id: Uuid,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     tracing::info!("setup room task {id}...");
@@ -668,9 +671,7 @@ pub async fn room_task(
                             let current_player_id =
                                 game.current_player_id().ok_or("should not happen")?;
                             let bots = &room_guard.bots;
-                            bots.iter()
-                                .flatten()
-                                .any(|b| b == &current_player_id)
+                            bots.iter().flatten().any(|b| b == &current_player_id)
                         } else {
                             false
                         }
@@ -719,23 +720,26 @@ pub async fn room_task(
                                     .await?;
 
                                 if players.iter().all(|p| p.is_some()) {
-                                    // let sender_bot = sender.clone();
-                                    // tokio::spawn(async move { bot_task(sender_bot, bots).await });
-                                    // tokio::time::sleep(Duration::from_millis(500)).await;
-                                    let users: [User; PLAYER_NUMBER] = players.map(|player| {
-                                        let Some(player) = player else { unreachable!() };
-                                        users
-                                            .iter()
-                                            .find_map(|p| {
-                                                if p.id == player {
-                                                    Some(*p)
+                                    let users: [User; PLAYER_NUMBER] =
+                                        to_static_array(players, |player| {
+                                            let pool_clone = pool.clone();
+                                            async move {
+                                                if let Some(player) = player {
+                                                    Ok(find_user_by_id(player, &pool_clone)
+                                                        .await
+                                                        .ok()
+                                                        .unwrap_or_else(|| {
+                                                            User::default().with_id(player)
+                                                        }))
                                                 } else {
-                                                    None
+                                                    Ok(User::default())
                                                 }
-                                            })
-                                            .unwrap_or_else(|| {
-                                                User::default().human(false).with_id(player)
-                                            })
+                                            }
+                                        })
+                                        .await?;
+
+                                    players.map(|player| {
+                                        let Some(player) = player else { unreachable!() };
                                     });
 
                                     let players: [(UserId, bool); PLAYER_NUMBER] =

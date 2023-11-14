@@ -1,13 +1,13 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display, mem::MaybeUninit};
 
+use crate::constants;
 use axum::{
     http::{header::SET_COOKIE, StatusCode},
     response::{IntoResponse, Redirect, Response},
 };
 use chrono::Local;
 use constants::COOKIE as COOKIE_NAME;
-
-use crate::constants;
+use futures_util::Future;
 #[derive(Debug)]
 pub struct HomePageRedirect;
 
@@ -32,6 +32,27 @@ impl IntoResponse for HomePageRedirect {
 pub fn service_error(e: impl Display) -> impl IntoResponse {
     tracing::error!("service error: {e}");
     StatusCode::INTERNAL_SERVER_ERROR
+}
+
+pub async fn to_static_array<I, O, F, Fut, const N: usize>(
+    inputs: &[I],
+    transform: F,
+) -> Result<[O; N], Box<dyn Error + Send + Sync>>
+where
+    I: Copy,
+    O: Copy,
+    F: Fn(I) -> Fut,
+    Fut: Future<Output = Result<O, Box<dyn Error + Send + Sync>>>,
+{
+    // Safety: trust me bro
+    unsafe {
+        let mut outputs: [MaybeUninit<O>; N] = MaybeUninit::uninit().assume_init();
+        for (idx, output) in outputs.iter_mut().enumerate() {
+            output.write(transform(inputs[idx]).await?);
+        }
+
+        Ok(*(&outputs as *const [MaybeUninit<O>; N] as *const [O; N]))
+    }
 }
 
 #[cfg(test)]

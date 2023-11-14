@@ -1,8 +1,9 @@
 use crate::{
     constants::{COOKIE as COOKIE_NAME, TIMEOUT_SECS, USER_ID},
+    db::upsert_user,
     room::{Room, Rooms},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
-    user::{User, Users},
+    user::User,
     utils::service_error,
     websocket::ws_handler,
 };
@@ -36,7 +37,6 @@ pub type WsEndpoint = Cow<'static, str>;
 pub struct AppState {
     pub rooms: Rooms,
     pub db_pool: Pool<Sqlite>,
-    pub users: Users,
     pub store: MemoryStore,
     pub ws_endpoint: WsEndpoint,
 }
@@ -45,9 +45,9 @@ impl FromRef<AppState> for Rooms {
         app_state.rooms.clone()
     }
 }
-impl FromRef<AppState> for Users {
-    fn from_ref(app_state: &AppState) -> Users {
-        app_state.users.clone()
+impl FromRef<AppState> for Pool<Sqlite> {
+    fn from_ref(app_state: &AppState) -> Pool<Sqlite> {
+        app_state.db_pool.clone()
     }
 }
 impl FromRef<AppState> for WsEndpoint {
@@ -64,14 +64,12 @@ pub fn get_router(
     ws_endpoint: Cow<'static, str>,
     db_pool: Pool<Sqlite>,
     rooms: Rooms,
-    users: Users,
     store: MemoryStore,
 ) -> Router {
     let serve_dir = ServeDir::new("assets");
     let state = AppState {
         rooms,
         db_pool,
-        users,
         store,
         ws_endpoint,
     };
@@ -131,9 +129,9 @@ async fn index_page(State(rooms): State<Rooms>) -> axum::response::Result<impl I
 
 async fn create_room(
     State(rooms): State<Rooms>,
-    State(users): State<Users>,
+    State(pool): State<Pool<Sqlite>>,
 ) -> axum::response::Result<impl IntoResponse> {
-    let (id, room) = Room::new(users).await;
+    let (id, room) = Room::new(pool).await;
     let response = Redirect::to(&format!("/room/{}", id));
 
     rooms.insert(id, room);
@@ -168,7 +166,7 @@ async fn get_room(
 
 pub async fn build_guest_session_if_none<B>(
     State(store): State<MemoryStore>,
-    State(users): State<Users>,
+    State(pool): State<Pool<Sqlite>>,
     request: Request<B>,
     next: Next<B>,
 ) -> axum::response::Result<impl IntoResponse> {
@@ -192,8 +190,11 @@ pub async fn build_guest_session_if_none<B>(
         let user = User::default()
             .with_id(id)
             .human(true)
+            .is_guest(true)
             .name(format!("Guest{id}"));
-        users.insert(user);
+        upsert_user(user, &pool)
+            .await
+            .map_err(|e| service_error(format!("couldn't save user {user:?} => {e}")))?;
     }
 
     // do something with `response`...
