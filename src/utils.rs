@@ -36,13 +36,13 @@ pub fn service_error(e: impl Display) -> impl IntoResponse {
 
 #[derive(Debug)]
 struct InternalError<T>(T);
-impl<T: Send + Sync + std::fmt::Debug> Display for InternalError<T> {
+impl<T: std::fmt::Debug + Display> Display for InternalError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "{}", self.0)
     }
 }
 
-impl<T: Send + Sync + std::fmt::Debug> Error for InternalError<T> {}
+impl<T: std::fmt::Debug + Display> Error for InternalError<T> {}
 pub async fn to_static_array<I, O, F, Fut, const N: usize>(
     inputs: &[I],
     transform: F,
