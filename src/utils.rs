@@ -34,6 +34,15 @@ pub fn service_error(e: impl Display) -> impl IntoResponse {
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
+#[derive(Debug)]
+struct InternalError<T>(T);
+impl<T: Send + Sync + std::fmt::Debug> Display for InternalError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+
+impl<T: Send + Sync + std::fmt::Debug> Error for InternalError<T> {}
 pub async fn to_static_array<I, O, F, Fut, const N: usize>(
     inputs: &[I],
     transform: F,
@@ -44,6 +53,10 @@ where
     F: Fn(I) -> Fut,
     Fut: Future<Output = Result<O, Box<dyn Error + Send + Sync>>>,
 {
+    if inputs.len() != N {
+        return Err(Box::new(InternalError("input len != output len")));
+    }
+
     // Safety: trust me bro
     unsafe {
         let mut outputs: [MaybeUninit<O>; N] = MaybeUninit::uninit().assume_init();
