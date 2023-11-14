@@ -2,6 +2,7 @@ pub static MAX_ROOMS: usize = 100;
 pub static CORS_ALLOW_ORIGIN: &str = "CORS_ALLOW_ORIGIN";
 pub static BODY_SIZE_LIMIT: &str = "BODY_SIZE_LIMIT";
 pub static SERVICE_HOST: &str = "SERVICE_HOST";
+pub static SQLITE_DB_URL: &str = "SQLITE_DB_PATH";
 pub static WS_ENDPOINT: &str = "WS_ENDPOINT";
 pub static SERVICE_PORT: &str = "SERVICE_PORT";
 pub static SERVICE_CONFIG_VOLUME: &str = "SERVICE_CONFIG_VOLUME";

@@ -18,6 +18,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use chrono::Local;
 use minijinja::context;
+use sqlx::{Pool, Sqlite};
 use std::{borrow::Cow, error::Error};
 use time::{macros::format_description, UtcOffset};
 use tower::ServiceBuilder;
@@ -34,6 +35,7 @@ pub type WsEndpoint = Cow<'static, str>;
 #[derive(Clone)]
 pub struct AppState {
     pub rooms: Rooms,
+    pub db_pool: Pool<Sqlite>,
     pub users: Users,
     pub store: MemoryStore,
     pub ws_endpoint: WsEndpoint,
@@ -60,6 +62,7 @@ impl FromRef<AppState> for MemoryStore {
 }
 pub fn get_router(
     ws_endpoint: Cow<'static, str>,
+    db_pool: Pool<Sqlite>,
     rooms: Rooms,
     users: Users,
     store: MemoryStore,
@@ -67,6 +70,7 @@ pub fn get_router(
     let serve_dir = ServeDir::new("assets");
     let state = AppState {
         rooms,
+        db_pool,
         users,
         store,
         ws_endpoint,
