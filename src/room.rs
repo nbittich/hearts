@@ -722,25 +722,20 @@ pub async fn room_task(
                                 if players.iter().all(|p| p.is_some()) {
                                     let users: [User; PLAYER_NUMBER] =
                                         to_static_array(players, |player| {
+                                            let Some(player) = player else {
+                                                unreachable!("wtf")
+                                            };
                                             let pool_clone = pool.clone();
                                             async move {
-                                                if let Some(player) = player {
-                                                    Ok(find_user_by_id(player, &pool_clone)
-                                                        .await
-                                                        .ok()
-                                                        .unwrap_or_else(|| {
-                                                            User::default().with_id(player)
-                                                        }))
-                                                } else {
-                                                    Ok(User::default())
-                                                }
+                                                Ok(find_user_by_id(player, &pool_clone)
+                                                    .await
+                                                    .ok()
+                                                    .unwrap_or_else(|| {
+                                                        User::default().with_id(player)
+                                                    }))
                                             }
                                         })
                                         .await?;
-
-                                    players.map(|player| {
-                                        let Some(player) = player else { unreachable!() };
-                                    });
 
                                     let players: [(UserId, bool); PLAYER_NUMBER] =
                                         users.map(|user| (user.id, user.bot));
