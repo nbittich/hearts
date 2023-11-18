@@ -2,135 +2,29 @@ use std::{
     borrow::Cow,
     collections::HashSet,
     error::Error,
-    fmt::{Debug, Display},
     sync::Arc,
     time::{Duration, Instant},
 };
 
+use crate::data::{
+    CardStack, PlayerCard, Room, RoomMessage, RoomMessageType, RoomState, User, UserId,
+};
 use crate::{
     constants::{
         ABRITRATRY_CHANNEL_CAPACITY, BOT_SLEEP_SECS, COMPUTE_SCORE_DELAY_SECS, DEFAULT_HANDS,
         TIMEOUT_SECS,
     },
     db::find_user_by_id,
-    user::{User, UserId},
     utils::to_static_array,
 };
 use arraystring::ArrayString;
 use async_broadcast::{InactiveReceiver, Receiver, Sender};
-use dashmap::DashMap;
 use lib_hearts::{
-    get_card_by_idx, Card, Game, GameError, GameState, PlayerState, PositionInDeck, TypeCard,
-    PLAYER_CARD_SIZE, PLAYER_NUMBER,
+    get_card_by_idx, Card, Game, GameError, GameState, PLAYER_CARD_SIZE, PLAYER_NUMBER,
 };
-use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Sqlite};
-use tokio::{sync::RwLock, task::JoinHandle, time::timeout};
+use tokio::{sync::RwLock, time::timeout};
 use uuid::Uuid;
-pub type CardEmoji = ArrayString<typenum::U4>;
-pub type CardStack = [Option<(usize, usize)>; PLAYER_NUMBER];
-pub type Rooms = Arc<DashMap<Uuid, Arc<RwLock<Room>>>>;
-
-#[derive(Serialize, Copy, PartialEq, Clone, Debug, Deserialize)]
-pub struct PlayerCard {
-    pub type_card: TypeCard,
-    pub emoji: CardEmoji,
-    pub position_in_deck: PositionInDeck,
-}
-
-pub type StaticStr = Cow<'static, str>;
-
-#[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub enum RoomMessageType {
-    StartHand {
-        current_player_id: UserId,
-        uuid: Uuid,
-    },
-    Join,
-    TimedOut,
-    JoinBot,
-    Joined(UserId),
-    ViewerJoined(UserId),
-    GetCards,
-    ReceiveCards([Option<PlayerCard>; PLAYER_CARD_SIZE]),
-    ReplaceCards([PlayerCard; lib_hearts::NUMBER_REPLACEABLE_CARDS]),
-    NewHand {
-        player_ids_in_order: [UserId; PLAYER_NUMBER],
-        current_player_id: UserId,
-        current_hand: u8,
-        player_scores: [PlayerState; PLAYER_NUMBER],
-        hands: u8,
-        uuid: Uuid,
-    },
-    NextPlayerToReplaceCards {
-        current_player_id: UserId,
-        uuid: Uuid,
-    },
-    NextPlayerToPlay {
-        current_player_id: UserId,
-        current_cards: Option<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
-        stack: [Option<PlayerCard>; PLAYER_NUMBER],
-        uuid: Uuid,
-    },
-    UpdateStackAndScore {
-        stack: [Option<PlayerCard>; PLAYER_NUMBER],
-        player_scores: [PlayerState; PLAYER_NUMBER],
-        current_scores: Option<[PlayerState; PLAYER_NUMBER]>,
-    },
-    End {
-        player_scores: [PlayerState; PLAYER_NUMBER],
-    },
-    PlayerError(GameError),
-    Play(PlayerCard),
-    GetCurrentState,
-    State {
-        mode: StaticStr,
-        player_scores: [PlayerState; PLAYER_NUMBER],
-        current_scores: [PlayerState; PLAYER_NUMBER],
-        current_cards: Box<[Option<PlayerCard>; PLAYER_CARD_SIZE]>,
-        current_stack: [Option<PlayerCard>; PLAYER_NUMBER],
-        current_hand: u8,
-        current_player_id: Option<UserId>,
-        hands: u8,
-    },
-    WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
-}
-
-#[derive(Clone, Serialize, PartialEq, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct RoomMessage {
-    // if from_user_id is none, the message comes from system
-    // if to_user_id is none and from_user_id is some, the message is for system
-    // if both are none, the message should be broadcast
-    pub from_user_id: Option<UserId>,
-    #[serde(skip_deserializing)]
-    pub to_user_id: Option<UserId>,
-    pub msg_type: RoomMessageType,
-}
-
-#[derive(Serialize)]
-pub struct Room {
-    pub id: Uuid,
-    pub state: RoomState,
-    pub viewers: HashSet<UserId>,
-    pub bots: [Option<UserId>; PLAYER_NUMBER],
-    #[serde(skip_serializing)]
-    pub sender: Option<Sender<RoomMessage>>,
-    #[serde(skip_serializing)]
-    pub receiver: InactiveReceiver<RoomMessage>,
-    #[serde(skip_serializing)]
-    pub task: Option<JoinHandle<Result<(), Box<dyn Error + Send + Sync>>>>,
-    #[serde(skip_serializing)]
-    pool: Pool<Sqlite>,
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum RoomState {
-    WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
-    Started([User; PLAYER_NUMBER], Game),
-    Done([User; PLAYER_NUMBER], Game),
-}
 
 fn convert_card_to_player_card(card: Option<(usize, &Card)>) -> Option<PlayerCard> {
     if let Some((position_in_deck, card)) = card {
@@ -932,22 +826,6 @@ pub async fn room_task(
                 continue;
             }
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct RoomError(String);
-impl Display for RoomError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-impl Error for RoomError {}
-
-impl RoomError {
-    fn from(e: impl Display) -> Self {
-        RoomError(e.to_string())
     }
 }
 

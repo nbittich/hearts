@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_variables)]
 mod constants;
+mod data;
 mod db;
 mod room;
 mod router;

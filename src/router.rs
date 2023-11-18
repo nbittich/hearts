@@ -1,9 +1,8 @@
+use crate::data::{Room, Rooms, User};
 use crate::{
     constants::{COOKIE as COOKIE_NAME, TIMEOUT_SECS, USER_ID},
     db::upsert_user,
-    room::{Room, Rooms},
     templ::{get_template, INDEX_PAGE, ROOM_PAGE},
-    user::User,
     utils::service_error,
     websocket::ws_handler,
 };

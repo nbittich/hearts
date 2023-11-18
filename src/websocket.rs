@@ -15,10 +15,7 @@ use axum::{
 use futures_util::{stream::SplitSink, SinkExt, StreamExt};
 use uuid::Uuid;
 
-use crate::{
-    room::{RoomMessage, Rooms},
-    user::{User, UserId},
-};
+use crate::data::{RoomMessage, Rooms, User, UserId};
 
 pub async fn ws_handler(
     ws: WebSocketUpgrade,

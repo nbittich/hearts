@@ -8,26 +8,16 @@ use axum::{
 };
 
 use rand::RngCore;
-use serde::Serialize;
-use serde_derive::Deserialize;
 use uuid::Uuid;
 
 use crate::{
     constants::{COOKIE, USER_ID},
+    data::{User, UserId},
     db::find_user_by_id,
     router::AppState,
     utils::HomePageRedirect,
 };
 
-pub type UserId = Uuid;
-
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
-pub struct User {
-    pub id: UserId,
-    pub is_guest: bool,
-    pub name: ArrayString<typenum::U12>,
-    pub bot: bool,
-}
 impl Default for User {
     fn default() -> Self {
         let mut rng = rand::thread_rng();

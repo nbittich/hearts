@@ -73,7 +73,7 @@ mod test {
     use lib_hearts::PLAYER_NUMBER;
     use uuid::Uuid;
 
-    use crate::user::User;
+    use crate::data::User;
 
     #[test]
     fn test_to_static_array1() {

@@ -4,17 +4,7 @@ use arraystring::ArrayString;
 use sqlx::{Pool, Sqlite};
 use uuid::Uuid;
 
-use crate::{
-    room::{Room, RoomState},
-    user::{User, UserId},
-};
-
-pub struct DbRoom {
-    id: Uuid,
-    state: RoomState,
-    bots: [Option<UserId>; lib_hearts::PLAYER_NUMBER],
-    viewers: HashSet<UserId>,
-}
+use crate::data::{DbRoom, Room, User};
 
 pub async fn find_user_by_id(id: Uuid, pool: &Pool<Sqlite>) -> Result<User, Box<dyn Error>> {
     let row = sqlx::query!("select id, name, is_guest from users where id = ?", id)
