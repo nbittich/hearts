@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n        INSERT into rooms(id, state, bots)\n        VALUES (?1, ?2, ?3)\n        ON CONFLICT DO UPDATE SET state=?2, bots=?3;\n    ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "9c4b03af2c2ad9ed50af8f1624e8fbc6ca48b41ddd95cf9fbb4e6ee8bd26d008"
+}

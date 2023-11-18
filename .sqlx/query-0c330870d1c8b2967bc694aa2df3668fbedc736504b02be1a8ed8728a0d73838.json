@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT into room_viewers (room_id,user_id) \n           VALUES (?1,?2)\n           ON CONFLICT DO NOTHING;",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "0c330870d1c8b2967bc694aa2df3668fbedc736504b02be1a8ed8728a0d73838"
+}

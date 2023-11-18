@@ -1,0 +1,32 @@
+{
+  "db_name": "SQLite",
+  "query": "select id, state, bots from rooms where id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "state",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "bots",
+        "ordinal": 2,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "3f93186000f2010772b3c9b3fa9b77376d5ee652790a8eb49d6fc989b9d47f18"
+}

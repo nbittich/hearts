@@ -124,6 +124,7 @@ pub struct Room {
     #[serde(skip_serializing)]
     pool: Pool<Sqlite>,
 }
+
 #[derive(Serialize, Deserialize)]
 pub enum RoomState {
     WaitingForPlayers([Option<UserId>; PLAYER_NUMBER]),
@@ -635,6 +636,7 @@ async fn send_current_state(
     }
     Ok(())
 }
+
 pub async fn room_task(
     room: Arc<RwLock<Room>>,
     pool: Pool<Sqlite>,
